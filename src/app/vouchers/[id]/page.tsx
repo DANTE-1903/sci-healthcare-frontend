@@ -9,6 +9,7 @@ import { useLiveUpdates, useNameIndex, useNow, useVoucher, useVoucherEvents } fr
 import { stepTxHashes, voucherTimeline, type StepState } from '@/lib/timeline';
 import { useWallet } from '@/lib/wallet';
 import { CopyValue } from '@/components/CopyValue';
+import { VoucherQr } from '@/components/VoucherQr';
 import { VoucherRow } from '@/components/VoucherRow';
 import { Alert, Card, ExplorerLink, Field, StatusBadge } from '@/components/ui';
 
@@ -110,7 +111,16 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[2fr_1fr]">
+      <VoucherQr
+        voucherId={v.id}
+        contractAddress={config.contracts.voucher}
+        serviceLabel={v.serviceLabel ?? `Service ${v.serviceCode}`}
+        providerName={v.provider.name}
+        amount={formatUsdc(v.amount)}
+        expiresAt={formatDate(v.expiresAt)}
+      />
+
+      <div className="grid gap-6 md:grid-cols-[2fr_1fr] print:hidden">
         <Card className="p-5">
           <h2 className="text-sm font-semibold">History</h2>
           <ol className="mt-4 space-y-4">
@@ -187,14 +197,16 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
         </Card>
       </div>
 
-      <VoucherRow
-        v={v}
-        actions={[...actions]}
-        onDone={() => {
-          void mutate();
-        }}
-        summary={false}
-      />
+      <div className="print:hidden">
+        <VoucherRow
+          v={v}
+          actions={[...actions]}
+          onDone={() => {
+            void mutate();
+          }}
+          summary={false}
+        />
+      </div>
     </div>
   );
 }

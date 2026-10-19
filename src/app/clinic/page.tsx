@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import useSWR from 'swr';
 
@@ -9,6 +10,7 @@ import { humaniseError, REGISTRY_ERRORS } from '@/lib/errors';
 import { useLiveUpdates, useProvider, useVouchers } from '@/lib/hooks';
 import { registry, type ProviderStanding } from '@/lib/protocol';
 import { useWallet } from '@/lib/wallet';
+import { QrScannerModal } from '@/components/QrScannerModal';
 import { VoucherRow } from '@/components/VoucherRow';
 import { useToast } from '@/components/Toast';
 import { Button, Card, Empty, ExplorerLink } from '@/components/ui';
@@ -34,9 +36,11 @@ const STANDING_TEXT: Record<Exclude<Standing, null>, string> = {
  * Uses SWR caching (#63) and live updates via SSE with polling fallback (#64).
  */
 export default function ClinicDeskPage() {
+  const router = useRouter();
   const { address, signTransaction, connect } = useWallet();
 
   const [busy, setBusy] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const toast = useToast();
 
   const [name, setName] = useState('');
@@ -110,12 +114,48 @@ export default function ClinicDeskPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Clinic desk</h1>
-        <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          {standing === null ? 'Checking registration…' : STANDING_TEXT[standing]}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Clinic desk</h1>
+          <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+            {standing === null ? 'Checking registration…' : STANDING_TEXT[standing]}
+          </p>
+        </div>
+        <div>
+          <Button
+            variant="ghost"
+            onClick={() => setScannerOpen(true)}
+            className="flex items-center gap-1.5"
+            aria-label="Scan voucher QR code"
+          >
+            <svg
+              aria-hidden="true"
+              className="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+            </svg>
+            <span>Scan voucher QR</span>
+          </Button>
+        </div>
       </div>
+
+      <QrScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={(voucherId) => {
+          setScannerOpen(false);
+          router.push(`/vouchers/${voucherId}`);
+        }}
+      />
 
       {standing === 'Unregistered' && (
         <Card className="space-y-3 p-5">
