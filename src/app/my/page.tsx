@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BrowserQRCodeReader } from '@zxing/browser';
 
 import { formatDate, shortAddress } from '@/lib/amounts';
+import { api } from '@/lib/api';
 import { trackEvent } from '@/lib/analytics';
 import {
   beneficiaryRef,
@@ -13,7 +14,8 @@ import {
   parsePatientBackup,
 } from '@/lib/beneficiary';
 import { humaniseError } from '@/lib/errors';
-import { invalidateVouchers, useLiveUpdates, useReceipts, useVouchers } from '@/lib/hooks';
+import { buildReceiptCsvRows, buildVoucherCsvRows, downloadCsv } from '@/lib/csv';
+import { invalidateVouchers, useLiveUpdates, useProviders, useReceipts, useVouchers } from '@/lib/hooks';
 import { voucher as protocol } from '@/lib/protocol';
 import { useSavedIdentity } from '@/lib/useSavedIdentity';
 import {
@@ -97,6 +99,8 @@ export default function MyPage() {
     mutate: mutateFunded,
   } = useVouchers(address ? { funder: address } : null);
 
+  const { providers } = useProviders();
+
   const {
     receipts,
     totalSpendDisplay: spend,
@@ -107,6 +111,14 @@ export default function MyPage() {
     vouchers: refVouchers,
     error: refVouchersError,
   } = useVouchers(activeRef ? { beneficiaryRef: activeRef } : null);
+
+  const providerMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of providers) {
+      map.set(p.address, p.name);
+    }
+    return map;
+  }, [providers]);
 
   // Combine wallet vouchers with any looked-up beneficiary history vouchers
   const seenIds = new Set(walletFunded.map((v) => v.id));
@@ -204,6 +216,61 @@ export default function MyPage() {
     }
   }
 
+  async function downloadFundedVouchersCsv() {
+    if (!address) return;
+
+    const all: typeof walletFunded = [];
+    const seen = new Set<string>();
+    let offset = 0;
+    let total = 0;
+
+    while (true) {
+      const page = await api.vouchers({ funder: address, limit: 100, offset });
+      const unique = page.vouchers.filter((voucher) => {
+        if (seen.has(voucher.id)) return false;
+        seen.add(voucher.id);
+        return true;
+      });
+      if (unique.length === 0) break;
+      all.push(...unique);
+      offset += page.vouchers.length;
+      // Cursor-paged responses omit the total; a short page is the end.
+      if (page.total === undefined) {
+        if (page.vouchers.length < 100) break;
+      } else {
+        total = page.total;
+        if (offset >= total) break;
+      }
+    }
+
+    downloadCsv('funded-vouchers.csv', buildVoucherCsvRows(all, providerMap, window.location.origin));
+  }
+
+  async function downloadCareHistoryCsv() {
+    if (!activeRef) return;
+
+    const all: typeof receipts = [];
+    const seen = new Set<string>();
+    let offset = 0;
+    let total = 0;
+
+    while (true) {
+      const page = await api.receipts(activeRef, { limit: 100, offset });
+      const unique = page.receipts.filter((receipt) => {
+        if (seen.has(receipt.voucherId)) return false;
+        seen.add(receipt.voucherId);
+        return true;
+      });
+      if (unique.length === 0) break;
+      all.push(...unique);
+      total = page.total;
+      offset += page.receipts.length;
+      if (offset >= total) break;
+    }
+
+    downloadCsv('care-history.csv', buildReceiptCsvRows(all, providerMap));
+  }
+
   async function applyImportedPatient(input: string | File | unknown) {
     setImportError(null);
     try {
@@ -299,17 +366,24 @@ export default function MyPage() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-semibold tracking-tight">Vouchers I funded</h1>
-          {refundable.length > 0 && (
-            <Button
-              variant="ghost"
-              disabled={batchRefunding}
-              onClick={() => void handleRefundAll()}
-            >
-              {batchRefunding
-                ? `Refunding ${batchProgress?.current ?? 0}/${batchProgress?.total ?? refundable.length}…`
-                : `Refund all (${refundable.length})`}
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {walletFunded.length > 0 && (
+              <Button variant="ghost" onClick={() => void downloadFundedVouchersCsv()}>
+                Download CSV
+              </Button>
+            )}
+            {refundable.length > 0 && (
+              <Button
+                variant="ghost"
+                disabled={batchRefunding}
+                onClick={() => void handleRefundAll()}
+              >
+                {batchRefunding
+                  ? `Refunding ${batchProgress?.current ?? 0}/${batchProgress?.total ?? refundable.length}…`
+                  : `Refund all (${refundable.length})`}
+              </Button>
+            )}
+          </div>
         </div>
         {batchProgress && (
           <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] p-3 text-sm">
@@ -530,26 +604,31 @@ export default function MyPage() {
           <Card className="p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Field label="Total care funded">${spend}</Field>
-              <Link
-                href="/my/print"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-canvas)]"
-              >
-                <svg
-                  aria-hidden="true"
-                  className="h-4 w-4 text-[var(--color-ink-soft)]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="ghost" onClick={() => void downloadCareHistoryCsv()}>
+                  Download CSV
+                </Button>
+                <Link
+                  href="/my/print"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-line)] bg-white px-3 py-1.5 text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-canvas)]"
                 >
-                  <path d="M6 9V2h12v7" />
-                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                  <path d="M6 14h12v8H6z" />
-                </svg>
-                Print care summary
-              </Link>
+                  <svg
+                    aria-hidden="true"
+                    className="h-4 w-4 text-[var(--color-ink-soft)]"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M6 9V2h12v7" />
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                    <path d="M6 14h12v8H6z" />
+                  </svg>
+                  Print care summary
+                </Link>
+              </div>
             </div>
             <ul className="mt-4 divide-y divide-[var(--color-line)]">
               {receipts.map((r) => (

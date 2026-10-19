@@ -75,6 +75,7 @@ export function useVouchers(
     status?: string;
     /** Page size; pass 1 when only `total` is used. */
     limit?: number;
+    offset?: number;
   } | null,
   config?: SWRConfiguration<VouchersResponse>,
 ) {
