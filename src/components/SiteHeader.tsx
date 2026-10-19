@@ -7,7 +7,6 @@ import { useEffect, useId, useState } from 'react';
 import { NavLink } from '@/components/ui';
 
 import { ConnectButton } from './ConnectButton';
-import { LanguageSwitcher } from './LanguageSwitcher';
 import { LowBandwidthToggle } from './LowBandwidthToggle';
 import { NetworkBadge } from './NetworkBadge';
 import { ThemeToggle } from './ThemeToggle';
@@ -70,7 +69,6 @@ export function SiteHeader() {
         </div>
 
         <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-          <LanguageSwitcher />
           <LowBandwidthToggle />
           <ThemeToggle />
           <NetworkBadge />

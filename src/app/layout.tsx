@@ -14,6 +14,7 @@ import { WalletProvider } from '@/lib/wallet';
 import { config, isTestnet } from '@/lib/config';
 
 import { LocaleProvider } from '@/i18n/LocaleContext';
+import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 
 import './globals.css';
 
@@ -81,6 +82,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     ? 'Testnet deployment. No real funds, and no patient health information is stored on chain — vouchers reference a service category and an opaque beneficiary reference only.'
                     : 'No patient health information is stored on chain — vouchers reference a service category and an opaque beneficiary reference only.'}
                 </p>
+                {/* Language choice for translated text (#5). */}
+                <LanguageSwitcher />
                 <nav aria-label="Footer navigation" className="flex flex-wrap gap-4 font-medium text-[var(--color-ink)]">
                   <Link href="/how-it-works" className="hover:text-[var(--color-brand)]">
                     How it works
