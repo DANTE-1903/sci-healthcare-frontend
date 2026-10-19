@@ -149,6 +149,37 @@ export async function parsePatientBackup(input: string | File | unknown): Promis
   return parseSavedPatientRecord(input);
 }
 
+/**
+ * Turns a saved patient into the backup text that `parsePatientBackup`
+ * reads back: JSON with the nickname (when there is one), reference and key.
+ * Whoever holds it can look up the patient's care history.
+ */
+export function serialisePatientBackup(patient: {
+  nickname?: string;
+  identifier: string;
+  key: string;
+  createdAt?: string;
+}): string {
+  const identifier = patient.identifier.trim();
+  const key = patient.key.trim();
+  const nickname = patient.nickname?.trim();
+
+  if (!identifier) throw new Error('This backup is missing a patient reference.');
+  if (!key) throw new Error('This backup is missing a patient key.');
+  if (key.length < 32) throw new Error('The patient key must be at least 32 characters long.');
+
+  return JSON.stringify(
+    {
+      ...(nickname ? { nickname } : {}),
+      identifier,
+      key,
+      ...(patient.createdAt ? { createdAt: patient.createdAt } : {}),
+    },
+    null,
+    2,
+  );
+}
+
 type SavedPatientStore = { patients: SavedPatient[]; selectedNickname: string };
 
 const PATIENTS_STORAGE = 'sci:saved-patients';

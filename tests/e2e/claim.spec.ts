@@ -11,6 +11,8 @@ test.beforeEach(async ({ page }) => {
   await mockBackend(page, {
     provider: CLINIC,
     vouchers: [FUNDED_VOUCHER('21')],
+    // Indexer catches up to the claim a few polls in (#9).
+    voucherConverges: { status: 'Claimed' },
   });
 });
 

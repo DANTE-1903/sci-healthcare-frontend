@@ -4,7 +4,14 @@ import {
   RegistryClient,
   VoucherClient,
 } from './contracts';
-import { arg, invokeContract, readContract, type SignFn } from './stellar';
+import {
+  arg,
+  invokeContract,
+  invokeContractBatch,
+  readContract,
+  type ContractCall,
+  type SignFn,
+} from './stellar';
 
 export { RegistryClient, VoucherClient, FaucetClient } from './contracts';
 
@@ -74,6 +81,72 @@ export const voucher = {
       params.funder,
       sign,
     );
+  },
+
+  /**
+   * Creates several vouchers, preferring a single batched transaction when the
+   * wallet/SDK supports it, while still falling back to individual writes so a
+   * later failure can be reported without losing already-created vouchers.
+   */
+  async createMany(
+    requests: Array<{
+      funder: string;
+      beneficiaryRef: string;
+      provider: string;
+      serviceCode: number;
+      amount: bigint;
+      expiresAt: number;
+    }>,
+    sign: SignFn,
+    onProgress?: (index: number, request: { funder: string; beneficiaryRef: string; provider: string; serviceCode: number; amount: bigint; expiresAt: number }, total: number) => void,
+  ) {
+    if (requests.length === 0) return [] as Array<{ hash: string; returnValue: unknown }>;
+
+    const batchCalls: ContractCall[] = [];
+    const callArgs = requests.map((params) => {
+      const client = getVoucherClient();
+      const clean = params.beneficiaryRef.startsWith('0x')
+        ? params.beneficiaryRef.slice(2)
+        : params.beneficiaryRef;
+      const args = client.spec.funcArgsToScVals('create_voucher', {
+        funder: params.funder,
+        beneficiary_ref: Buffer.from(clean, 'hex'),
+        provider: params.provider,
+        service_code: params.serviceCode,
+        amount: params.amount,
+        expires_at: BigInt(params.expiresAt),
+      });
+      batchCalls.push({
+        contractId: config.contracts.voucher,
+        method: 'create_voucher',
+        args,
+        walletAddress: params.funder,
+      });
+      return {
+        params,
+        args,
+      };
+    });
+
+    try {
+      if (requests.length > 1) {
+        const batch = await invokeContractBatch(batchCalls, sign);
+        for (let i = 0; i < batch.length; i++) {
+          onProgress?.(i + 1, callArgs[i].params, requests.length);
+        }
+        return batch;
+      }
+    } catch {
+      // A batch call may be unavailable or a single voucher may fail, so the UI
+      // continues with per-item writes to preserve partial success reporting.
+    }
+
+    const results: Array<{ hash: string; returnValue: unknown }> = [];
+    for (let i = 0; i < requests.length; i++) {
+      onProgress?.(i + 1, requests[i], requests.length);
+      results.push(await this.create(requests[i], sign));
+    }
+    return results;
   },
 
   /** claim(provider, voucher_id) */

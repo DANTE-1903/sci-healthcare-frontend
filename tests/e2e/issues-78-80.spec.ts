@@ -118,6 +118,8 @@ test.describe('Toast notifications for transaction results (#80)', () => {
     await mockBackend(page, {
       vouchers: [CLAIMED_VOUCHER('801')],
       voucherById: { '801': CLAIMED_VOUCHER('801') },
+      // Indexer catches up to the dispute a few polls in (#9).
+      voucherConverges: { status: 'Disputed' },
     });
 
     await page.goto('/my');

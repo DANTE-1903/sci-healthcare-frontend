@@ -8,7 +8,11 @@ import { mockBackend, mockInvokes, useMockWallet } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await useMockWallet(page, ATTESTER);
-  await mockBackend(page, { vouchers: [CLAIMED_VOUCHER('22')] });
+  await mockBackend(page, {
+    vouchers: [CLAIMED_VOUCHER('22')],
+    // Indexer catches up to the attestation a few polls in (#9).
+    voucherConverges: { status: 'Attested' },
+  });
 });
 
 test('attester confirms care delivered', async ({ page }) => {

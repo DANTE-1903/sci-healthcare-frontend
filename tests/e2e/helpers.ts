@@ -51,6 +51,14 @@ export type BackendState = {
    * out answers 404, exactly like an indexer that predates backend #13 —
    * the page then shows the timeline without transaction links.
    */
+  /**
+   * Indexer convergence (#9). After this many reads of `GET /vouchers/:id`,
+   * the mock reports the voucher with `status`, simulating the indexer
+   * catching up to a write (default: the 3rd read, ~3s into the backoff
+   * poll). Earlier reads serve the fixture state, so write flows can assert
+   * the pending state first and the new status after.
+   */
+  voucherConverges?: { status: string; afterReads?: number };
   voucherEventsById?: Record<string, unknown[]>;
   dailyStats?: Record<string, unknown>;
   attesters?: Record<string, unknown>[];
@@ -59,6 +67,7 @@ export type BackendState = {
 
 export async function mockBackend(page: Page, state: BackendState): Promise<void> {
   const providers = state.providers ?? (state.provider ? [state.provider] : []);
+  const readsByVoucher = new Map<string, number>();
   await page.route('http://localhost:8080/**', (route) => {
     const url = new URL(route.request().url());
     const parts = url.pathname.split('/').filter(Boolean);
@@ -142,6 +151,19 @@ export async function mockBackend(page: Page, state: BackendState): Promise<void
         return json({ message: 'Not found' }, 404);
       }
       if (parts.length === 2) {
+        const converge = state.voucherConverges;
+        if (converge) {
+          const seen = (readsByVoucher.get(parts[1]) ?? 0) + 1;
+          readsByVoucher.set(parts[1], seen);
+          if (seen > (converge.afterReads ?? 2)) {
+            const raw =
+              state.voucherById?.[parts[1]] ??
+              state.vouchers?.find((cand) => String(cand.id) === parts[1]);
+            if (raw && typeof raw === 'object') {
+              return json({ ...(raw as Record<string, unknown>), status: converge.status });
+            }
+          }
+        }
         const v = state.voucherById?.[parts[1]];
         if (v) return json(v);
         return json({ message: 'Not found' }, 404);

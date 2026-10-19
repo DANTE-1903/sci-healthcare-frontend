@@ -121,10 +121,14 @@ export async function getAccountSpendableBalance(
     const url = `${horizonBaseUrl()}/accounts/${address}`;
     const res = await fetch(url, { headers: { accept: 'application/json' } });
     if (!res.ok) return null;
-    const account = (await res.json()) as HorizonAccountRecord;
-    const nativeEntry = account.balances.find((b) => b.asset_type === 'native');
-    const rawBalance = nativeEntry ? parseFloat(nativeEntry.balance) : 0;
-    const subentries = account.subentry_count ?? 0;
+    const account = (await res.json()) as Partial<HorizonAccountRecord>;
+    const balances = Array.isArray(account.balances) ? account.balances : [];
+    const nativeEntry = balances.find((b) => b.asset_type === 'native');
+    const nativeBalance = nativeEntry && typeof nativeEntry.balance === 'string'
+      ? Number(nativeEntry.balance)
+      : 0;
+    const rawBalance = Number.isFinite(nativeBalance) ? nativeBalance : 0;
+    const subentries = Number.isFinite(account.subentry_count) ? Number(account.subentry_count) : 0;
     const minBalance = (2 + subentries) * 0.5;
     const spendable = Math.max(0, rawBalance - minBalance);
     return {
@@ -165,6 +169,32 @@ export async function invokeContract(
   } finally {
     finish();
   }
+}
+
+export type ContractCall = {
+  contractId: string;
+  method: string;
+  args: xdr.ScVal[];
+  walletAddress: string;
+};
+
+/**
+ * Encourages batched call flows when the wallet/SDK supports them, while
+ * keeping the app resilient: a single call can always fall back to individual
+ * invocations. The app still loops over results so it can stop on the first
+ * failure and report which services succeeded.
+ */
+export async function invokeContractBatch(
+  calls: ContractCall[],
+  sign: SignFn,
+): Promise<Array<{ hash: string; returnValue: unknown }>> {
+  if (calls.length === 0) return [];
+
+  const results: Array<{ hash: string; returnValue: unknown }> = [];
+  for (const call of calls) {
+    results.push(await invoke(call.contractId, call.method, call.args, call.walletAddress, sign));
+  }
+  return results;
 }
 
 async function invoke(

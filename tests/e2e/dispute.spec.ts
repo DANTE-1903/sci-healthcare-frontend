@@ -11,7 +11,11 @@ import { mockBackend, mockInvokes, useMockWallet } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await useMockWallet(page, FUNDER);
-  await mockBackend(page, { vouchers: [CLAIMED_VOUCHER('23')] });
+  await mockBackend(page, {
+    vouchers: [CLAIMED_VOUCHER('23')],
+    // Indexer catches up to the dispute a few polls in (#9).
+    voucherConverges: { status: 'Disputed' },
+  });
 });
 
 test('funder disputes a claimed voucher', async ({ page }) => {

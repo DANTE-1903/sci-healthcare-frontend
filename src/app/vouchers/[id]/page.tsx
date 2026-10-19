@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { use, useState } from 'react';
 
+import { ApiError } from '@/lib/api';
 import { formatDate, formatUsdc } from '@/lib/amounts';
 import { config, explorerContract, explorerTx } from '@/lib/config';
 import { useLiveUpdates, useNameIndex, useNow, useVoucher, useVoucherEvents } from '@/lib/hooks';
@@ -40,13 +42,15 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
     }
   }
 
-  const { voucher: v, error, mutate } = useVoucher(id);
+  const { voucher: v, error, rawError, mutate } = useVoucher(id);
   // Per-step transaction hashes (#18). An indexer without the events
   // endpoint (backend #13) yields an empty list and the history renders
   // exactly as before, only without the "view transaction" links.
   const { events } = useVoucherEvents(id);
   useLiveUpdates({ voucherId: id });
 
+  // An unknown voucher number is a missing page, not an API failure.
+  if (rawError instanceof ApiError && rawError.status === 404) notFound();
   if (error) return <Alert>{error}</Alert>;
   if (!v) return <p className="text-sm text-[var(--color-ink-soft)]">{t('common.loading')}</p>;
 

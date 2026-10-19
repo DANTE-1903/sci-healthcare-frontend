@@ -9,6 +9,7 @@ import { SwrProvider } from '@/components/SwrProvider';
 import { TestnetNotice } from '@/components/TestnetNotice';
 import { ToastProvider } from '@/components/Toast';
 import { SiteHeader } from '@/components/SiteHeader';
+import { THEME_INIT_SCRIPT } from '@/lib/theme';
 import { WalletProvider } from '@/lib/wallet';
 import { config, isTestnet } from '@/lib/config';
 
@@ -45,8 +46,12 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // suppressHydrationWarning: the theme init script sets data-theme before
+  // paint, which the server render cannot know (#10).
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      {/* Theme before paint (#10): stored override, else the OS setting. */}
+      <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       <body>
         {config.plausibleDomain ? <Analytics domain={config.plausibleDomain} /> : null}
         <ErrorReporter />

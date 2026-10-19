@@ -1,9 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-import type { Voucher } from '@/lib/api';
+import { api, type Voucher } from '@/lib/api';
 import { formatDate, formatUsdc, timeUntil } from '@/lib/amounts';
 import { trackEvent, type AnalyticsEvent } from '@/lib/analytics';
 import { explorerTx } from '@/lib/config';
@@ -11,13 +11,13 @@ import { DISPUTE_REASONS, disputeReasonLabel, type DisputeReasonCode } from '@/l
 import { humaniseError } from '@/lib/errors';
 import { invalidateVouchers, useNow } from '@/lib/hooks';
 import { voucher as protocol } from '@/lib/protocol';
+import { EXPECTED_STATUS, pollVoucherStatus } from '@/lib/reconcile';
 import { useWallet } from '@/lib/wallet';
 
 import { Button, Card, ExplorerLink, InfoTip, Modal, StatusBadge } from './ui';
 import { AddressName } from './AddressName';
 import { useToast } from './Toast';
-
-type Action = 'claim' | 'attest' | 'settle' | 'refund' | 'dispute';
+import { availableActions, type VoucherAction as Action } from '@/lib/voucher-actions';
 
 /** Funnel step per contract write. Names only — never any properties. */
 const ACTION_EVENTS = {
@@ -44,6 +44,15 @@ export function VoucherRow({
   const now = useNow();
   const toast = useToast();
   const [busy, setBusy] = useState<Action | null>(null);
+  // After a write the chain has moved but the indexer lags (#9): while
+  // polling, the row shows a pending state instead of the stale status.
+  const [reconciling, setReconciling] = useState<Action | null>(null);
+  // Transaction hash when the indexer never caught up in time.
+  const [staleTx, setStaleTx] = useState<string | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => () => {
+    mounted.current = false;
+  }, []);
   // Disputing freezes funds, so it takes a reason and a confirmation modal.
   // Attesting pays the clinic after the dispute window, so it confirms too.
   const [disputing, setDisputing] = useState(false);
@@ -65,38 +74,49 @@ export function VoucherRow({
       setDisputing(false);
       setAttesting(false);
       trackEvent(ACTION_EVENTS[action]);
+      // The transaction is confirmed on chain; wait for the indexer to
+      // catch up instead of refetching a stale row immediately (#9).
+      setBusy(null);
+      setStaleTx(null);
+      setReconciling(action);
+      const outcome = await pollVoucherStatus(
+        () => api.voucher(v.id).then((detail) => detail.status),
+        EXPECTED_STATUS[action],
+      );
+      if (!mounted.current) return;
+      setReconciling(null);
       void invalidateVouchers(v.id);
       onDone?.();
-      toast.success(
-        <>
-          Done.{' '}
-          <ExplorerLink href={explorerTx(res.hash)}>View transaction</ExplorerLink>
-        </>,
-      );
+      if (outcome === 'matched') {
+        toast.success(
+          <>
+            Done.{' '}
+            <ExplorerLink href={explorerTx(res.hash)}>View transaction</ExplorerLink>
+          </>,
+        );
+      } else {
+        setStaleTx(res.hash);
+        toast.success(
+          <>
+            Confirmed on chain — the indexer is still catching up.{' '}
+            <ExplorerLink href={explorerTx(res.hash)}>View transaction</ExplorerLink>
+          </>,
+        );
+      }
     } catch (err) {
       toast.error(humaniseError(err));
     } finally {
-      setBusy(null);
+      if (mounted.current) setBusy(null);
     }
   }
 
-  // Only offer an action the contract will actually accept right now.
-  const available = actions.filter((a) => {
-    switch (a) {
-      case 'claim':
-        return v.status === 'Funded';
-      case 'attest':
-        return v.status === 'Claimed';
-      case 'settle':
-        return v.isSettleable;
-      case 'refund':
-        return v.isRefundable;
-      case 'dispute':
-        return v.status === 'Claimed' || v.status === 'Attested';
-      default:
-        return false;
-    }
-  });
+  // Only offer an action the contract will actually accept right now
+  // (state machine in `@/lib/voucher-actions`, covered by unit tests).
+  const available = availableActions(
+    v.status,
+    { isSettleable: v.isSettleable, isRefundable: v.isRefundable },
+    actions,
+  );
 
   return (
     // Without the summary, the first hint or button row sits at the top.
@@ -170,17 +190,29 @@ export function VoucherRow({
             <Button
               key={a}
               variant={a === 'dispute' ? 'danger' : a === 'settle' ? 'primary' : 'ghost'}
-              disabled={busy !== null}
+              disabled={busy !== null || reconciling !== null}
               onClick={() => {
                 if (a === 'dispute') setDisputing(true);
                 else if (a === 'attest') setAttesting(true);
                 else void run(a);
               }}
             >
-              {busy === a ? 'Confirming…' : LABELS[a]}
+              {busy === a ? 'Confirming…' : reconciling === a ? 'Updating…' : LABELS[a]}
             </Button>
           ))}
         </div>
+      )}
+
+      {reconciling && (
+        <p role="status" className="mt-3 text-xs text-[var(--color-ink-soft)]">
+          Confirmed on chain, updating…
+        </p>
+      )}
+      {staleTx && !reconciling && (
+        <p className="mt-3 text-xs text-[var(--color-ink-soft)]">
+          The transaction succeeded on chain but the list has not caught up yet.{' '}
+          <ExplorerLink href={explorerTx(staleTx)}>View transaction</ExplorerLink>
+        </p>
       )}
 
       <Modal

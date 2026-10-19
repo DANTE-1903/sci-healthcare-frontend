@@ -108,6 +108,8 @@ test('claiming records a prop-less event', async ({ page }) => {
   await mockBackend(page, {
     provider: CLINIC,
     vouchers: [FUNDED_VOUCHER('31')],
+    // Indexer catches up to the claim a few polls in (#9).
+    voucherConverges: { status: 'Claimed' },
   });
 
   await page.goto('/clinic');

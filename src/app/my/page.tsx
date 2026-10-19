@@ -1,9 +1,11 @@
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { BrowserQRCodeReader } from '@zxing/browser';
+import QRCode from 'qrcode';
 
 import { formatDate, shortAddress } from '@/lib/amounts';
 import { api } from '@/lib/api';
@@ -12,6 +14,7 @@ import {
   beneficiaryRef,
   localIdentity,
   parsePatientBackup,
+  serialisePatientBackup,
 } from '@/lib/beneficiary';
 import { humaniseError } from '@/lib/errors';
 import { buildReceiptCsvRows, buildVoucherCsvRows, downloadCsv } from '@/lib/csv';
@@ -75,6 +78,11 @@ export default function MyPage() {
   const [activeRef, setActiveRef] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [backupOpen, setBackupOpen] = useState(false);
+  const [backupAccepted, setBackupAccepted] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupQr, setBackupQr] = useState<string | null>(null);
   const [qrOpen, setQrOpen] = useState(false);
   const [qrBusy, setQrBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -286,6 +294,65 @@ export default function MyPage() {
       setError(null);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'That patient backup is invalid.');
+    }
+  }
+
+  const patientBackup = useMemo(() => {
+    if (!identifier || !secret) return '';
+    try {
+      return serialisePatientBackup({
+        nickname: saved.selectedNickname || undefined,
+        identifier,
+        key: secret,
+        createdAt: new Date().toISOString(),
+      });
+    } catch {
+      return '';
+    }
+  }, [identifier, secret, saved.selectedNickname]);
+
+  function downloadPatientBackup() {
+    if (!identifier || !secret) return;
+
+    const fileName = `${(identifier || 'patient').trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9._-]/g, '') || 'patient'}-backup.json`;
+    const payload = serialisePatientBackup({
+        nickname: saved.selectedNickname || undefined,
+        identifier,
+        key: secret,
+        createdAt: new Date().toISOString(),
+      });
+    const blob = new Blob([payload], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function renderPatientQr() {
+    if (!identifier || !secret) return;
+
+    setBackupBusy(true);
+    setBackupError(null);
+    try {
+      const payload = serialisePatientBackup({
+        nickname: saved.selectedNickname || undefined,
+        identifier,
+        key: secret,
+        createdAt: new Date().toISOString(),
+      });
+      const value = await QRCode.toDataURL(payload, {
+        width: 300,
+        margin: 1,
+        color: { dark: '#111827', light: '#ffffff' },
+        errorCorrectionLevel: 'M',
+      });
+      setBackupQr(value);
+    } catch {
+      setBackupError('Unable to render the QR code for this backup.');
+    } finally {
+      setBackupBusy(false);
     }
   }
 
@@ -547,9 +614,95 @@ export default function MyPage() {
           <Button variant="ghost" onClick={() => setQrOpen(true)}>
             Scan QR
           </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setBackupOpen(true);
+              setBackupAccepted(false);
+              setBackupError(null);
+              setBackupQr(null);
+            }}
+          >
+            Back up key
+          </Button>
         </div>
 
         {importError && <Alert>{importError}</Alert>}
+
+        {backupOpen && (
+          <Card className="space-y-4 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-medium">Back up patient key</div>
+              <Button
+                variant="ghost"
+                className="px-3 py-1.5 text-xs"
+                onClick={() => {
+                  setBackupOpen(false);
+                  setBackupAccepted(false);
+                  setBackupError(null);
+                  setBackupQr(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+            <Alert kind="info">
+              Anyone who holds this patient reference and key can look up the patient&apos;s care
+              history. Keep this backup in a private, encrypted place and do not email, text, or
+              share it in a chat.
+            </Alert>
+            <label className="flex items-start gap-3 text-sm text-[var(--color-ink)]">
+              <input
+                type="checkbox"
+                checked={backupAccepted}
+                onChange={(e) => setBackupAccepted(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-[var(--color-line)]"
+              />
+              <span>
+                I understand that this secret allows someone to view this patient&apos;s care history,
+                and I will keep the backup secure.
+              </span>
+            </label>
+            {backupAccepted && (
+              <div className="rounded-lg border border-[var(--color-line)] bg-[var(--color-canvas)] p-3">
+                <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs leading-6 text-[var(--color-ink)]">
+                  {patientBackup || 'No backup is available until the patient reference and key are entered.'}
+                </pre>
+              </div>
+            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                disabled={!backupAccepted || !identifier || !secret}
+                onClick={downloadPatientBackup}
+              >
+                Download JSON
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={!backupAccepted || !identifier || !secret}
+                onClick={() => void renderPatientQr()}
+              >
+                Show QR code
+              </Button>
+            </div>
+            {backupBusy && (
+              <div className="text-xs text-[var(--color-ink-soft)]">Generating QR code…</div>
+            )}
+            {backupError && <Alert>{backupError}</Alert>}
+            {backupQr && (
+              <div className="flex justify-center">
+                <Image
+                  src={backupQr}
+                  alt="Patient backup QR code"
+                  width={224}
+                  height={224}
+                  unoptimized
+                  className="h-56 w-56 rounded-lg border border-[var(--color-line)] bg-white p-2"
+                />
+              </div>
+            )}
+          </Card>
+        )}
 
         {qrOpen && (
           <Card className="space-y-3 p-4">

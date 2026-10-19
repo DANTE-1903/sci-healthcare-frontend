@@ -8,7 +8,11 @@ import { mockBackend, mockInvokes, useMockWallet } from './helpers';
 
 test.beforeEach(async ({ page }) => {
   await useMockWallet(page, FUNDER);
-  await mockBackend(page, { vouchers: [REFUNDABLE_VOUCHER('24')] });
+  await mockBackend(page, {
+    vouchers: [REFUNDABLE_VOUCHER('24')],
+    // Indexer catches up to the refund a few polls in (#9).
+    voucherConverges: { status: 'Refunded' },
+  });
 });
 
 test('funder is refunded for an unused voucher', async ({ page }) => {
