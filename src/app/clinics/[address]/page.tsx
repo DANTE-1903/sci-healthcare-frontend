@@ -9,6 +9,7 @@ import { ApiError, type Service } from '@/lib/api';
 import {
   formatDate,
   formatUsdc,
+  formatXlm,
   toAmountInput,
   toBaseUnits,
 } from '@/lib/amounts';
@@ -16,7 +17,7 @@ import { trackEvent } from '@/lib/analytics';
 import { beneficiaryRef, generateKey, localIdentity } from '@/lib/beneficiary';
 import { invalidateVouchers, useProvider, useVouchers } from '@/lib/hooks';
 import { useSavedIdentity } from '@/lib/useSavedIdentity';
-import { config, explorerTx } from '@/lib/config';
+import { config, explorerTx, isTestnet } from '@/lib/config';
 import { humaniseError, VOUCHER_ERRORS } from '@/lib/errors';
 import {
   EXPIRY_OPTIONS,
@@ -25,6 +26,7 @@ import {
   type ExpiryChoice,
 } from '@/lib/expiry';
 import { usdc, voucher } from '@/lib/protocol';
+import { quoteXlmForUsdc } from '@/lib/stellar';
 import { useWallet } from '@/lib/wallet';
 import { SavedPatientControls } from '@/components/SavedPatientControls';
 import { TestUsdc } from '@/components/TestUsdc';
@@ -109,6 +111,9 @@ export default function ClinicPage({
   const [generatedKey, setGeneratedKey] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [xlmSwapQuote, setXlmSwapQuote] = useState<Awaited<
+    ReturnType<typeof quoteXlmForUsdc>
+  > | null>(null);
   const [batchProgress, setBatchProgress] = useState<{
     current: number;
     total: number;
@@ -188,6 +193,36 @@ export default function ClinicPage({
     };
   }, [baseAmount]);
   const currentQuote = quote && quote.amount === baseAmount ? quote : null;
+  const canSwapWithXlm = isTestnet && Boolean(config.usdcIssuer);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadQuote() {
+      if (!wallet || !selected || baseAmount === null || !canSwapWithXlm) {
+        if (!ignore) setXlmSwapQuote(null);
+        return;
+      }
+
+      try {
+        const balance = await usdc.balance(wallet).catch(() => 0n);
+        if (balance >= baseAmount) {
+          if (!ignore) setXlmSwapQuote(null);
+          return;
+        }
+        const nextQuote = await quoteXlmForUsdc(baseAmount - balance, 100);
+        if (!ignore) setXlmSwapQuote(nextQuote);
+      } catch {
+        if (!ignore) setXlmSwapQuote(null);
+      }
+    }
+
+    void loadQuote();
+    return () => {
+      ignore = true;
+    };
+  }, [baseAmount, canSwapWithXlm, selected, wallet]);
+
   const reviewAmount = baseAmount === null ? '—' : formatUsdc(baseAmount);
   const reviewFee = currentQuote ? formatUsdc(currentQuote.fee) : '—';
   const reviewNet = currentQuote ? formatUsdc(currentQuote.net) : '—';
@@ -278,7 +313,21 @@ export default function ClinicPage({
         });
 
         try {
-          const res = await voucher.create(request, signTransaction);
+          // A single voucher the wallet cannot cover in USDC buys the rest
+          // with XLM in the same transaction (#27); a basket uses USDC only.
+          let missingUsdc = 0n;
+          if (requests.length === 1 && canSwapWithXlm) {
+            const held = await usdc.balance(wallet).catch(() => 0n);
+            if (held < request.amount) missingUsdc = request.amount - held;
+          }
+          const res =
+            missingUsdc > 0n
+              ? await voucher.createWithXlmSwap(
+                  { ...request, swapAmount: missingUsdc },
+                  signTransaction,
+                  100,
+                )
+              : await voucher.create(request, signTransaction);
           const balance = await usdc.balance(wallet).catch(() => null);
           if (balance !== null) setWalletBalance(balance);
 
@@ -591,7 +640,14 @@ export default function ClinicPage({
                   {formatUsdc(currentQuote.fee)} protocol fee. Refunds are free.
                 </span>
               )}
-              {insufficientUsdcBalance && (
+              {xlmSwapQuote && (
+                <span className="mt-2 block rounded-lg border border-amber-300/70 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                  XLM swap: {formatXlm(xlmSwapQuote.xlmCost)} XLM quoted to buy{' '}
+                  {formatUsdc(xlmSwapQuote.usdcAmount)} USDC, with a 1% slippage cap of{' '}
+                  {formatXlm(xlmSwapQuote.maxXlm)} XLM before the transaction aborts.
+                </span>
+              )}
+              {!xlmSwapQuote && insufficientUsdcBalance && (
                 <span className="mt-2 block text-xs text-red-600">
                   Not enough USDC in your wallet for this. You need ${formatUsdc(usdcShortfall ?? 0n)} more.
                 </span>
@@ -647,13 +703,15 @@ export default function ClinicPage({
                 }
                 setReviewing(true);
               }}
-              disabled={busy || insufficientUsdcBalance}
+              disabled={busy || (insufficientUsdcBalance && !xlmSwapQuote)}
               className="w-full"
             >
               {busy
                 ? 'Confirming…'
                 : wallet
-                  ? `Fund ${selectedServices.length === 1 ? 'voucher' : `${selectedServices.length} vouchers`}`
+                  ? xlmSwapQuote && selectedServices.length === 1
+                    ? 'Swap XLM & fund voucher'
+                    : `Fund ${selectedServices.length === 1 ? 'voucher' : `${selectedServices.length} vouchers`}`
                   : 'Connect wallet'}
             </Button>
 
@@ -713,6 +771,15 @@ export default function ClinicPage({
                 <dt className="text-[var(--color-ink-soft)]">Clinic payout</dt>
                 <dd className="mono text-right font-medium">${reviewNet}</dd>
               </div>
+              {xlmSwapQuote && (
+                <div className="flex items-start justify-between gap-3">
+                  <dt className="text-[var(--color-ink-soft)]">Paid in XLM</dt>
+                  <dd className="mono text-right font-medium">
+                    up to {formatXlm(xlmSwapQuote.maxXlm)} XLM for {formatUsdc(xlmSwapQuote.usdcAmount)}{' '}
+                    USDC
+                  </dd>
+                </div>
+              )}
               <div className="flex items-start justify-between gap-3">
                 <dt className="text-[var(--color-ink-soft)]">Expires</dt>
                 <dd className="text-right font-medium">{expirySummary}</dd>
@@ -726,7 +793,7 @@ export default function ClinicPage({
               <Button
                 className="flex-1"
                 onClick={() => void fund()}
-                disabled={busy || insufficientUsdcBalance}
+                disabled={busy || (insufficientUsdcBalance && !xlmSwapQuote)}
               >
                 {busy ? 'Confirming…' : 'Confirm'}
               </Button>

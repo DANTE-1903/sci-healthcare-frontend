@@ -1,5 +1,6 @@
 import type { xdr } from '@stellar/stellar-sdk';
 
+import { toBaseUnits } from './amounts';
 import { config } from './config';
 import { isMockRpc, mockRpcDelayMs, recordMockCall } from './e2e-seam';
 import { beginPendingTransaction } from './pending-tx';
@@ -24,6 +25,9 @@ function loadSdk(): Promise<Sdk> {
 type RpcServer = InstanceType<Sdk['rpc']['Server']>;
 let cachedServer: RpcServer | null = null;
 
+type HorizonServer = InstanceType<Sdk['Horizon']['Server']>;
+let cachedHorizonServer: HorizonServer | null = null;
+
 async function getServer(): Promise<RpcServer> {
   if (cachedServer) return cachedServer;
   const { rpc } = await loadSdk();
@@ -33,15 +37,155 @@ async function getServer(): Promise<RpcServer> {
   return cachedServer;
 }
 
+async function getHorizonServer(): Promise<HorizonServer> {
+  if (cachedHorizonServer) return cachedHorizonServer;
+  const { Horizon } = await loadSdk();
+  cachedHorizonServer = new Horizon.Server(horizonBaseUrl(), {
+    allowHttp: horizonBaseUrl().startsWith('http://'),
+  });
+  return cachedHorizonServer;
+}
+
 export type SignFn = (xdrString: string) => Promise<string>;
 
 export const MIN_FEE_BUFFER_XLM = 1.0;
+export const PATH_PAYMENT_SLIPPAGE_BPS = 100;
 
 export interface SpendableXlmInfo {
   rawBalance: number;
   minBalance: number;
   spendable: number;
   isLowForFees: boolean;
+}
+
+export interface XlmSwapQuote {
+  usdcAmount: bigint;
+  xlmCost: bigint;
+  maxXlm: bigint;
+  slippageBps: number;
+}
+
+function toDecimalString(value: bigint, decimals = 7): string {
+  const scale = 10n ** BigInt(decimals);
+  const whole = value / scale;
+  const frac = (value % scale).toString().padStart(decimals, '0').replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : `${whole.toString()}`;
+}
+
+export async function quoteXlmForUsdc(
+  usdcAmount: bigint,
+  slippageBps = PATH_PAYMENT_SLIPPAGE_BPS,
+): Promise<XlmSwapQuote> {
+  if (usdcAmount <= 0n) {
+    return {
+      usdcAmount: 0n,
+      xlmCost: 0n,
+      maxXlm: 0n,
+      slippageBps,
+    };
+  }
+
+  if (isMockRpc()) {
+    const cost = usdcAmount / 100n + 1n;
+    const max = cost + (cost * BigInt(slippageBps) / 10_000n);
+    return {
+      usdcAmount,
+      xlmCost: cost,
+      maxXlm: max,
+      slippageBps,
+    };
+  }
+
+  if (!config.usdcIssuer) {
+    throw new Error('USDC issuer is not configured for an XLM path payment.');
+  }
+
+  const { Asset } = await loadSdk();
+  const server = await getHorizonServer();
+  const destAsset = new Asset('USDC', config.usdcIssuer);
+  const pathCall = server.strictReceivePaths(
+    [Asset.native()],
+    destAsset,
+    toDecimalString(usdcAmount),
+  );
+  const paths = await pathCall.call();
+  const best = (paths as { records?: Array<{ source_amount?: string }> }).records?.[0];
+  if (!best) {
+    throw new Error('No XLM → USDC path is available for this voucher amount.');
+  }
+
+  const xlmCost = toBaseUnits(best.source_amount ?? '0');
+  const maxXlm = xlmCost + (xlmCost * BigInt(slippageBps) / 10_000n);
+  return {
+    usdcAmount,
+    xlmCost,
+    maxXlm,
+    slippageBps,
+  };
+}
+
+export async function invokePathPaymentThenContract(
+  contractId: string,
+  method: string,
+  args: xdr.ScVal[],
+  walletAddress: string,
+  sign: SignFn,
+  { usdcAmount, slippageBps = PATH_PAYMENT_SLIPPAGE_BPS }: { usdcAmount: bigint; slippageBps?: number },
+): Promise<{ hash: string; returnValue: unknown }> {
+  if (usdcAmount <= 0n) {
+    return invoke(contractId, method, args, walletAddress, sign);
+  }
+
+  const quote = await quoteXlmForUsdc(usdcAmount, slippageBps);
+  if (isMockRpc()) {
+    recordMockCall({ kind: 'invoke', contractId, method });
+    return { hash: 'ab'.repeat(32), returnValue: mockReturnValue(method) };
+  }
+
+  const { Asset, BASE_FEE, Contract, Operation, TransactionBuilder, rpc, scValToNative } =
+    await loadSdk();
+  const server = await getServer();
+  const account = await server.getAccount(walletAddress);
+  const usdcAsset = new Asset('USDC', config.usdcIssuer);
+
+  const built = new TransactionBuilder(account, {
+    fee: BASE_FEE,
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(
+      Operation.pathPaymentStrictReceive({
+        destination: walletAddress,
+        sendAsset: Asset.native(),
+        sendMax: toDecimalString(quote.maxXlm),
+        destAsset: usdcAsset,
+        destAmount: toDecimalString(usdcAmount),
+      }),
+    )
+    .addOperation(new Contract(contractId).call(method, ...args))
+    .setTimeout(180)
+    .build();
+
+  const sim = await server.simulateTransaction(built);
+  if (rpc.Api.isSimulationError(sim)) {
+    throw new Error(sim.error);
+  }
+
+  const prepared = rpc.assembleTransaction(built, sim).build();
+  const signedXdr = await sign(prepared.toXDR());
+  const signed = TransactionBuilder.fromXDR(signedXdr, config.networkPassphrase);
+
+  const sent = await server.sendTransaction(signed);
+  if (sent.status === 'ERROR') {
+    throw new Error(
+      `Transaction rejected: ${JSON.stringify(sent.errorResult ?? sent.status)}`,
+    );
+  }
+
+  const result = await waitForTransaction(sent.hash);
+  return {
+    hash: sent.hash,
+    returnValue: result.returnValue ? scValToNative(result.returnValue) : null,
+  };
 }
 
 interface HorizonBalanceLine {
