@@ -22,9 +22,10 @@
   },
   "dependencies": {
     "@creit.tech/stellar-wallets-kit": "2.6.0",
+    "@sci-healthcare/client": "file:vendor/sci-healthcare-client",
     "@sentry/browser": "11.8.0",
     "@stellar/stellar-sdk": "17.0.1",
-    "jsqr": "^1.4.0",
+    "@zxing/browser": "^0.2.1",
     "leaflet": "1.9.4",
     "next": "16.3.4",
     "next-intl": "^4.14.9",

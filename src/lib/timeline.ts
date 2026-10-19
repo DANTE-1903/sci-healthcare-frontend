@@ -7,7 +7,7 @@ export type TimelineStep = {
   label: string;
   state: StepState;
   /** When it happened, or when it is due for upcoming steps. */
-  at: string | null;
+  at: string | Date | null;
   detail?: string;
   /**
    * Hash of the transaction behind this step, when the indexer has one

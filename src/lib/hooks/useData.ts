@@ -7,13 +7,14 @@ import {
   type Attester,
   type DailyStats,
   type Provider,
-  type Receipt,
+  type ReceiptsResponse,
   type Stats,
-  type Voucher,
+  type VoucherDetail,
   type VoucherEvent,
+  type VouchersResponse,
 } from '../api';
 
-export type LoadedVoucher = Voucher & { receipt: Receipt | null };
+export type LoadedVoucher = VoucherDetail;
 
 /**
  * Hook for fetching and caching a single voucher with its receipt (#63).
@@ -75,7 +76,7 @@ export function useVouchers(
     /** Page size; pass 1 when only `total` is used. */
     limit?: number;
   } | null,
-  config?: SWRConfiguration<{ total: number; vouchers: Voucher[] }>,
+  config?: SWRConfiguration<VouchersResponse>,
 ) {
   const { data, error, isLoading, isValidating, mutate } = useSWR(
     params ? ['vouchers', params] : null,
@@ -121,7 +122,7 @@ export function useProvider(
  * Hook for fetching and caching provider directory (#63).
  */
 export function useProviders(
-  params?: { status?: string; country?: string; q?: string },
+  params?: { status?: 'Pending' | 'Active' | 'Suspended'; country?: string; q?: string },
   config?: SWRConfiguration<{ total: number; providers: Provider[] }>,
 ) {
   const { data, error, isLoading, isValidating, mutate } = useSWR(
@@ -211,7 +212,7 @@ export function useAttesters(
  */
 export function useReceipts(
   beneficiaryRef: string | null | undefined,
-  config?: SWRConfiguration<{ total: number; totalSpendDisplay: string; receipts: Receipt[] }>,
+  config?: SWRConfiguration<ReceiptsResponse>,
 ) {
   const { data, error, isLoading, isValidating, mutate } = useSWR(
     beneficiaryRef ? ['receipts', beneficiaryRef] : null,

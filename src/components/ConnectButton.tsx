@@ -82,7 +82,7 @@ export function ConnectButton() {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((prev) => !prev)}
-        className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-canvas)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
+        className="inline-flex max-sm:min-h-11 items-center gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink)] transition hover:bg-[var(--color-canvas)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]"
       >
         <span
           aria-hidden="true"

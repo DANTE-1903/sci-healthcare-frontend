@@ -180,7 +180,7 @@ async function invoke(
   // would couple the tests to SDK internals; this keeps the same
   // `{ hash, returnValue }` shape the UI consumes.
   if (isMockRpc()) {
-    recordMockCall({ kind: 'invoke', contractId, method });
+    recordMockCall({ kind: 'invoke', contractId, method }, recordArgs(args));
     // A test can keep a write in flight to observe the unload guard.
     const delay = mockRpcDelayMs();
     if (delay > 0) await new Promise((r) => setTimeout(r, delay));
@@ -261,7 +261,7 @@ export async function readContract<T>(
   args: xdr.ScVal[] = [],
 ): Promise<T> {
   if (isMockRpc()) {
-    recordMockCall({ kind: 'read', contractId, method });
+    recordMockCall({ kind: 'read', contractId, method }, recordArgs(args));
     return mockReadResult<T>(method, args);
   }
 
@@ -292,6 +292,15 @@ export async function readContract<T>(
 // ----- end-to-end test doubles (see e2e-seam.ts) -----
 
 /** create_voucher returns the new id as u64; every other write returns nothing. */
+/**
+ * The arguments of a mocked call as base64 XDR, so Playwright can assert the
+ * exact values a contract call carried — the `args` beside the recorded
+ * calls in e2e-seam.ts.
+ */
+function recordArgs(args: xdr.ScVal[]): string[] {
+  return args.map((a) => a.toXDR('base64'));
+}
+
 function mockReturnValue(method: string): unknown {
   if (method === 'create_voucher') return 7n;
   return null;

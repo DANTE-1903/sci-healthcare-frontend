@@ -1,6 +1,42 @@
+import {
+  createClient,
+  type Attester,
+  type DailyStats,
+  type ListProvidersParams,
+  type ListVouchersParams,
+  type Provider,
+  type Receipt,
+  type Stats,
+  type Voucher as ClientVoucher,
+} from '@sci-healthcare/client';
+
 import { config } from './config';
 
-/** Read model served by the indexer. Never used for writes. */
+/**
+ * Typed read model served by the indexer. Never used for writes.
+ *
+ * The models and the HTTP client come from `@sci-healthcare/client`, which is
+ * generated from the backend's OpenAPI contract, so a route or field change
+ * in the indexer reaches this app as a type error instead of a runtime 404.
+ */
+export {
+  ApiError,
+  providerLocation,
+  type Attester,
+  type DailyBucket,
+  type DailyRow,
+  type DailyStats,
+  type ListProvidersParams,
+  type ListVouchersParams,
+  type Provider,
+  type ProviderLocation,
+  type Receipt,
+  type ReceiptsResponse,
+  type Service,
+  type Stats,
+  type VoucherStatus,
+  type VouchersResponse,
+} from '@sci-healthcare/client';
 
 /**
  * Deadline for a read that a page render is waiting on: the
@@ -11,99 +47,29 @@ import { config } from './config';
  */
 export const METADATA_TIMEOUT_MS = 4_000;
 
-export type Service = {
-  code: number;
-  label: string;
-  price: string;
-  priceDisplay: string;
-  active?: boolean;
-};
-
-export type ProviderLocation = { lat: number; lng: number };
-
-export type Provider = {
-  address: string;
-  name: string;
-  country: string;
-  status: 'Pending' | 'Active' | 'Suspended';
-  registeredAt: string;
-  services: Service[];
-  /** Published coordinates, when the clinic has chosen to share them. */
-  location?: ProviderLocation | null;
-  /** Provider metadata; coordinates may instead live under `location`. */
-  metadata?: { location?: ProviderLocation | null } | null;
-};
-
 /**
- * The coordinates a clinic has published, or null.
- *
- * Providers are read from the indexer, which mirrors the on-chain provider
- * metadata (contracts #10). Not every clinic publishes a location, and some
- * deploy at one — so this validates rather than trusting the payload, and
- * callers treat null as "kept off the map, still in the list".
+ * Dispute-resolution fields returned by the indexer (#47) that the generated
+ * client does not describe yet. Kept as an extension of the shared model so
+ * the rest of the voucher shape still comes from one place; delete this once
+ * the OpenAPI schema publishes them.
  */
-export function providerLocation(p: Provider): ProviderLocation | null {
-  const raw = p.location ?? p.metadata?.location ?? null;
-  if (!raw) return null;
-  const { lat, lng } = raw;
-  if (
-    typeof lat !== 'number' ||
-    typeof lng !== 'number' ||
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng) ||
-    lat < -90 ||
-    lat > 90 ||
-    lng < -180 ||
-    lng > 180
-  ) {
-    return null;
-  }
-  return { lat, lng };
-}
-
-export type VoucherStatus =
-  | 'Funded'
-  | 'Claimed'
-  | 'Attested'
-  | 'Settled'
-  | 'Disputed'
-  | 'Refunded';
-
-export type Voucher = {
-  id: string;
-  funder: string;
-  beneficiaryRef: string;
-  provider: { address: string; name: string; country: string };
-  serviceCode: number;
-  /** Catalogue name for serviceCode; absent from older API deployments. */
-  serviceLabel?: string | null;
-  amount: string;
-  amountDisplay: string;
-  status: VoucherStatus;
-  createdAt: string;
-  expiresAt: string;
-  claimedAt: string | null;
-  attestedAt: string | null;
-  disputeDeadline: string | null;
-  settledNet: string | null;
-  settledFee: string | null;
-  disputeReason?: number | null;
-  /** When resolved, whether the dispute resulted in settlement or refund (#47). */
+export type Voucher = ClientVoucher & {
+  /** When resolved, whether the dispute resulted in settlement or refund. */
   disputeOutcome?: 'Settled' | 'Refunded' | string | null;
-  /** Timestamp when the dispute was resolved by administrator (#47). */
+  /** Timestamp when the dispute was resolved by an administrator. */
   disputeResolvedAt?: string | null;
-  /** When refund starts to succeed, or null if it never will. */
-  refundableAt?: string | null;
-  isSettleable: boolean;
-  isRefundable: boolean;
 };
+
+/** A voucher plus the receipt minted when it settled (`null` until then). */
+export type VoucherDetail = Voucher & { receipt: Receipt | null };
 
 /**
  * One row of the indexer's append-only contract-event log (backend #13).
  *
  * Every processed event is stored once, in ledger order, with the hash of
  * the transaction that emitted it — the raw material for linking a
- * timeline step to Stellar Expert (#18).
+ * timeline step to Stellar Expert (#18). The generated client does not
+ * expose this endpoint yet, so the shape stays local until it does.
  */
 export type VoucherEvent = {
   /** RPC event id; unique, and the indexer is idempotent on it. */
@@ -151,115 +117,49 @@ export function parseVoucherEvents(body: unknown): VoucherEvent[] {
   );
 }
 
-export type Receipt = {
-  voucherId: string;
-  providerAddress: string;
-  serviceCode: number;
-  serviceLabel?: string | null;
-  amount: string;
-  amountDisplay: string;
-  settledAt: string;
-};
+/** The shared client, pointed at the configured indexer. */
+const client = createClient({ baseUrl: config.apiUrl });
 
-export type Stats = {
-  providers: number;
-  activeProviders: number;
-  vouchers: number;
-  settledVouchers: number;
-  settledValue: string;
-  receipts: number;
-};
-
-export type DailyBucket = { count: number; amount: string };
-
-export type DailyRow = {
-  date: string;
-  funded: DailyBucket;
-  settled: DailyBucket;
-  refunded: DailyBucket;
-};
-
-export type DailyStats = {
-  days: number;
-  from: string;
-  to: string;
-  series: DailyRow[];
-};
-
-export type Attester = {
-  address: string;
-  active: boolean;
-  addedAt: string;
-  removedAt?: string | null;
-  attestations: number;
-  name?: string | null;
-  organisation?: string | null;
-};
-
-class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-    this.name = 'ApiError';
-  }
+/**
+ * A client whose reads carry a deadline.
+ *
+ * `Client` takes its fetch implementation per client rather than per call,
+ * so a caller that passes an abort signal (the link-preview layouts) gets a
+ * small per-request client instead of the shared one. Reads like that happen
+ * while a page is waiting, where an unbounded fetch is worse than a second
+ * client.
+ */
+function timedClient(signal?: AbortSignal | null) {
+  if (!signal) return client;
+  return createClient({
+    baseUrl: config.apiUrl,
+    fetch: (input, init) => fetch(input, { ...init, signal }),
+  });
 }
 
-async function get<T>(
-  path: string,
-  params?: Record<string, string | undefined>,
-  /** Carried into `fetch`, so a caller can put a deadline on the read. */
-  init?: RequestInit,
-): Promise<T> {
-  const url = new URL(path, config.apiUrl);
-  for (const [k, v] of Object.entries(params ?? {})) {
-    if (v) url.searchParams.set(k, v);
-  }
-
-  let res: Response;
-  try {
-    res = await fetch(url.toString(), {
-      ...init,
-      headers: { accept: 'application/json' },
-    });
-  } catch {
-    throw new ApiError(0, `Cannot reach the API at ${config.apiUrl}. Is it running?`);
-  }
-
-  if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
-    throw new ApiError(res.status, body.message ?? body.error ?? res.statusText);
-  }
-  return res.json() as Promise<T>;
-}
+type AttestersResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  attesters: Attester[];
+};
 
 export const api = {
-  stats: () => get<Stats>('/stats'),
+  stats: (): Promise<Stats> => client.stats(),
 
-  dailyStats: (days = 30) => get<DailyStats>('/stats/daily', { days: String(days) }),
+  dailyStats: (days = 30): Promise<DailyStats> => client.dailyStats(days),
 
-  providers: (params?: { status?: string; country?: string; q?: string }) =>
-    get<{ total: number; providers: Provider[] }>('/providers', params),
+  providers: (params?: ListProvidersParams) => client.providers(params),
 
-  provider: (address: string, init?: RequestInit) =>
-    get<Provider>(`/providers/${address}`, undefined, init),
+  provider: (address: string, init?: RequestInit): Promise<Provider> =>
+    timedClient(init?.signal).provider(address),
 
-  vouchers: (params: {
-    funder?: string;
-    provider?: string;
-    beneficiaryRef?: string;
-    status?: string;
-    /** Page size. A caller that only needs `total` asks for one row. */
-    limit?: number;
-  }) =>
-    get<{ total: number; vouchers: Voucher[] }>('/vouchers', {
-      funder: params.funder,
-      provider: params.provider,
-      beneficiaryRef: params.beneficiaryRef,
-      status: params.status,
-      limit: params.limit ? String(params.limit) : undefined,
-    }),
+  vouchers: (params: ListVouchersParams) => client.vouchers(params),
 
-  voucher: (id: string, init?: RequestInit) =>
-    get<Voucher & { receipt: Receipt | null }>(`/vouchers/${id}`, undefined, init),
+  voucher: async (id: string, init?: RequestInit): Promise<VoucherDetail> => {
+    const voucher = await timedClient(init?.signal).voucher(id);
+    return { ...voucher, receipt: voucher.receipt ?? null };
+  },
 
   /**
    * A voucher's on-chain event log, in ledger order (#18, backend #13).
@@ -269,22 +169,25 @@ export const api = {
    * not as a failure of the page.
    */
   voucherEvents: async (id: string, init?: RequestInit): Promise<VoucherEvent[]> =>
-    parseVoucherEvents(await get<unknown>(`/vouchers/${id}/events`, undefined, init)),
+    parseVoucherEvents(
+      await timedClient(init?.signal).rawGet<unknown>(
+        `/vouchers/${encodeURIComponent(id)}/events`,
+      ),
+    ),
 
-  receipts: (beneficiaryRef: string) =>
-    get<{ total: number; totalSpendDisplay: string; receipts: Receipt[] }>('/receipts', {
-      beneficiaryRef,
-    }),
+  receipts: (beneficiaryRef: string) => client.receipts({ beneficiaryRef }),
 
+  /**
+   * Attester directory. Not part of the generated client yet, so it goes
+   * through `rawGet` with the documented response envelope.
+   */
   attesters: (params?: { all?: boolean; limit?: number; offset?: number }) =>
-    get<{ total: number; limit: number; offset: number; attesters: Attester[] }>('/attesters', {
+    client.rawGet<AttestersResponse>('/attesters', {
       all: params?.all ? 'true' : 'false',
-      limit: params?.limit ? String(params.limit) : undefined,
-      offset: params?.offset ? String(params.offset) : undefined,
+      limit: params?.limit,
+      offset: params?.offset,
     }),
 
-  attester: (address: string) => get<Attester>(`/attesters/${address}`),
+  attester: (address: string): Promise<Attester> =>
+    client.rawGet<Attester>(`/attesters/${encodeURIComponent(address)}`),
 };
-
-export { ApiError };
-

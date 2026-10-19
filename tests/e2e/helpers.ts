@@ -17,7 +17,7 @@ import type { MockRpcCall } from '@/lib/e2e-seam';
 declare global {
   interface Window {
     __SCI_MOCK_WALLET__?: { address: string };
-    __SCI_MOCK_RPC__?: { calls: MockRpcCall[]; delayMs?: number };
+    __SCI_MOCK_RPC__?: { calls: MockRpcCall[]; args: string[][]; delayMs?: number };
   }
 }
 
@@ -32,7 +32,7 @@ export async function useMockWallet(
 ): Promise<void> {
   await page.addInitScript(
     `window.__SCI_MOCK_WALLET__ = { address: '${address}' };
-     window.__SCI_MOCK_RPC__ = { calls: [], delayMs: ${delayMs} };`,
+     window.__SCI_MOCK_RPC__ = { calls: [], args: [], delayMs: ${delayMs} };`,
   );
   // The analytics script tag is present in the test build; keep the request
   // itself inside the sandbox. (The analytics spec stubs window.plausible,
@@ -157,4 +157,20 @@ export async function mockBackend(page: Page, state: BackendState): Promise<void
 export async function mockInvokes(page: Page): Promise<MockRpcCall[]> {
   const calls = await page.evaluate(() => window.__SCI_MOCK_RPC__?.calls ?? []);
   return calls.filter((c) => c.kind === 'invoke');
+}
+
+/**
+ * The arguments of those writes, as base64 XDR, in the same order: index `i`
+ * here is what `mockInvokes(page)[i]` carried. Lets a test assert a value the
+ * UI never shows — that the date a funder picked became the `expires_at` the
+ * contract was called with, for instance.
+ */
+export async function mockInvokeArgs(page: Page): Promise<string[][]> {
+  return page.evaluate(() => {
+    const mock = window.__SCI_MOCK_RPC__;
+    if (!mock) return [];
+    return mock.calls
+      .map((call, i) => (call.kind === 'invoke' ? mock.args[i] ?? [] : null))
+      .filter((args): args is string[] => args !== null);
+  });
 }

@@ -98,7 +98,7 @@ export function sortVouchers(vouchers: Voucher[], sort: VoucherSort): Voucher[] 
 
 function dateOf(v: Voucher): number {
   // NaN (an unparseable date) sorts as the epoch rather than breaking the order.
-  return Date.parse(v.createdAt) || 0;
+  return new Date(v.createdAt).getTime() || 0;
 }
 
 function compareNumbers(a: number, b: number): number {

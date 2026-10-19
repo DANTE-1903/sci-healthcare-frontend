@@ -32,6 +32,10 @@ test('fund a voucher for a clinic service', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Fund voucher' }).click();
 
+  // Funding now goes through a review step (#22).
+
+  await page.getByRole('button', { name: 'Confirm', exact: true }).click();
+
   await expect(page.getByText('Voucher funded.')).toBeVisible();
   const link = page.getByRole('link', { name: 'Open voucher #7' });
   await expect(link).toBeVisible();

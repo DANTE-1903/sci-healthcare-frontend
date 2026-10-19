@@ -1,0 +1,565 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SCI Healthcare API",
+    "description": "Read-only API for the SCI Healthcare care-voucher protocol on Stellar. All monetary amounts are decimal strings representing i128 values in base units (stroops). A 7-decimal Stellar asset like USDC uses 10^7 base units per whole token, so \"30000000\" = 3.0000000 USDC. Amounts are strings, not numbers, because they can exceed Number.MAX_SAFE_INTEGER.",
+    "version": "0.2.0"
+  },
+  "components": {
+    "schemas": {}
+  },
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "summary": "Liveness check",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/version": {
+      "get": {
+        "summary": "Version and deployment info",
+        "tags": [
+          "health"
+        ],
+        "description": "Reports the build version and commit, the configured Stellar network, the RPC endpoints in use (redacted), the indexed contract ids, the configured indexer start ledger, and when this process started.",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/ready": {
+      "get": {
+        "summary": "Readiness check",
+        "tags": [
+          "health"
+        ],
+        "description": "Reports indexer lag, RPC retention gaps, and database connectivity.",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/stats": {
+      "get": {
+        "summary": "Aggregate dashboard counters",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/providers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/providers/{address}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "address",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/providers/{address}/history": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "address",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/providers/{address}/services/{code}/history": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "address",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "code",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/countries": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/services": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/services/{code}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "code",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/vouchers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/vouchers.csv": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/vouchers/due": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/vouchers/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/receipts": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/receipts/summary": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/receipts/{voucherId}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "voucherId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/governance": {
+      "get": {
+        "summary": "Admin history for each contract",
+        "tags": [
+          "governance"
+        ],
+        "description": "Who controls each contract, and how that changed.",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/v1/stream": {
+      "get": {
+        "summary": "Live voucher updates (server-sent events)",
+        "tags": [
+          "stream"
+        ],
+        "description": "Streams voucher state transitions as the indexer commits them. Requires exactly one of `voucher` or `provider`. Each `data:` frame is one JSON object with `type`, `voucherId`, `providerAddress`, `status`, `ledger`, `txHash` and `at`; it never contains a beneficiary reference. Comment lines are heartbeats.",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "summary": "Liveness check",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "summary": "Version and deployment info",
+        "tags": [
+          "health"
+        ],
+        "description": "Reports the build version and commit, the configured Stellar network, the RPC endpoints in use (redacted), the indexed contract ids, the configured indexer start ledger, and when this process started.",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "summary": "Readiness check",
+        "tags": [
+          "health"
+        ],
+        "description": "Reports indexer lag, RPC retention gaps, and database connectivity.",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/stats": {
+      "get": {
+        "summary": "Aggregate dashboard counters",
+        "tags": [
+          "health"
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/providers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/providers/{address}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "address",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/providers/{address}/history": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "address",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/providers/{address}/services/{code}/history": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "address",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "code",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/countries": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/services": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/services/{code}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "code",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/vouchers": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/vouchers.csv": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/vouchers/due": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/vouchers/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/receipts": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/receipts/summary": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/receipts/{voucherId}": {
+      "get": {
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "voucherId",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/governance": {
+      "get": {
+        "summary": "Admin history for each contract",
+        "tags": [
+          "governance"
+        ],
+        "description": "Who controls each contract, and how that changed.",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    },
+    "/stream": {
+      "get": {
+        "summary": "Live voucher updates (server-sent events)",
+        "tags": [
+          "stream"
+        ],
+        "description": "Streams voucher state transitions as the indexer commits them. Requires exactly one of `voucher` or `provider`. Each `data:` frame is one JSON object with `type`, `voucherId`, `providerAddress`, `status`, `ledger`, `txHash` and `at`; it never contains a beneficiary reference. Comment lines are heartbeats.",
+        "responses": {
+          "200": {
+            "description": "Default Response"
+          }
+        }
+      }
+    }
+  }
+}

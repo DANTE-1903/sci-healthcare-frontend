@@ -1,16 +1,14 @@
 import type { Metadata, Viewport } from 'next';
 import Link from 'next/link';
 
-import { ConnectButton } from '@/components/ConnectButton';
 import { Analytics } from '@/components/Analytics';
 import { ErrorReporter } from '@/components/ErrorReporter';
-import { LowBandwidthToggle } from '@/components/LowBandwidthToggle';
-import { NetworkBadge } from '@/components/NetworkBadge';
 import { PendingTransactionGuard } from '@/components/PendingTransactionGuard';
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
 import { SwrProvider } from '@/components/SwrProvider';
 import { TestnetNotice } from '@/components/TestnetNotice';
 import { ToastProvider } from '@/components/Toast';
+import { SiteHeader } from '@/components/SiteHeader';
 import { WalletProvider } from '@/lib/wallet';
 import { config, isTestnet } from '@/lib/config';
 
@@ -56,48 +54,56 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ErrorReporter />
         <PendingTransactionGuard />
         <ServiceWorkerRegistration />
-        <LocaleProvider>
-          <WalletProvider>
-            {/* Application-wide SWR defaults, relaxed in low-bandwidth mode
-                (#75). The setting is read once here so every page below sees
-                the same behaviour. */}
-            <SwrProvider>
-              <TestnetNotice />
-              <header className="border-b border-[var(--color-line)] bg-[var(--color-surface)]">
-                <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:px-6">
-                  <div className="flex min-w-0 items-center gap-6">
-                    <Link href="/" className="flex items-center gap-2 font-semibold">
-                      <span
-                        aria-hidden
-                        className="grid h-7 w-7 place-items-center rounded-lg bg-[var(--color-brand)] text-sm text-white"
-                      >
-                        ✚
-                      </span>
-                      SCI Healthcare
-                    </Link>
-                    <HeaderNav />
-                  </div>
-                  <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-                    <LanguageSwitcher />
-                    <LowBandwidthToggle />
-                    <NetworkBadge />
-                    <ConnectButton />
-                  </div>
-                </div>
-              </header>
+        <WalletProvider>
+          {/* Application-wide SWR defaults, relaxed in low-bandwidth mode
+              (#75). The setting is read once here so every page below sees
+              the same behaviour. */}
+          <SwrProvider>
+            <TestnetNotice />
+            <SiteHeader />
 
-              <main className="mx-auto max-w-6xl px-6 py-8">
-                {/* Toasts live here so transaction results from any page appear
-                    wherever the user is looking (#80). */}
-                <ToastProvider>{children}</ToastProvider>
-              </main>
+            <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+              {/* Toasts live here so transaction results from any page appear
+                  wherever the user is looking (#80). */}
+              <ToastProvider>{children}</ToastProvider>
+            </main>
 
-              <footer className="mx-auto max-w-6xl border-t border-[var(--color-line)] px-6 py-8 text-xs text-[var(--color-ink-soft)]">
-                <FooterContent isTestnet={isTestnet} />
-              </footer>
-            </SwrProvider>
-          </WalletProvider>
-        </LocaleProvider>
+            <footer className="mx-auto max-w-6xl border-t border-[var(--color-line)] px-4 py-8 text-xs text-[var(--color-ink-soft)] sm:px-6">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="max-w-xl">
+                  {isTestnet
+                    ? 'Testnet deployment. No real funds, and no patient health information is stored on chain — vouchers reference a service category and an opaque beneficiary reference only.'
+                    : 'No patient health information is stored on chain — vouchers reference a service category and an opaque beneficiary reference only.'}
+                </p>
+                <nav aria-label="Footer navigation" className="flex flex-wrap gap-4 font-medium text-[var(--color-ink)]">
+                  <Link href="/how-it-works" className="hover:text-[var(--color-brand)]">
+                    How it works
+                  </Link>
+                  <Link href="/stats" className="hover:text-[var(--color-brand)]">
+                    Stats
+                  </Link>
+                  <Link href="/attesters" className="hover:text-[var(--color-brand)]">
+                    Attesters
+                  </Link>
+                  <Link href="/privacy" className="hover:text-[var(--color-brand)]">
+                    Privacy
+                  </Link>
+                  <Link href="/faq" className="hover:text-[var(--color-brand)]">
+                    FAQ
+                  </Link>
+                  <a
+                    href="https://godgift-care.github.io/sci-healthcare-contracts/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="hover:text-[var(--color-brand)]"
+                  >
+                    Docs
+                  </a>
+                </nav>
+              </div>
+            </footer>
+          </SwrProvider>
+        </WalletProvider>
       </body>
     </html>
   );

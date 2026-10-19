@@ -1,0 +1,115 @@
+name: Update visual snapshots
+
+# Maintainer tool: regenerates the Playwright visual snapshots for a pull
+# request on the same Linux image CI compares against, and commits them to
+# the pull request's branch. Run it after reviewing a pull request whose UI
+# change is intentional: Actions -> Update visual snapshots -> Run workflow.
+#
+# Two jobs on purpose. `render` runs the pull request's code with no
+# secrets and uploads only the PNGs it produced. `commit` runs on a fresh
+# runner, never executes pull request code, accepts only PNG files with
+# snapshot names, and pushes them with AUTOMERGE_TOKEN.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Pull request number
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: update-snapshots-${{ inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    outputs:
+      repo: ${{ steps.pr.outputs.repo }}
+      ref: ${{ steps.pr.outputs.ref }}
+      sha: ${{ steps.pr.outputs.sha }}
+    steps:
+      - id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ inputs.pr }}
+        run: |
+          [[ "$PR" =~ ^[0-9]+$ ]] || { echo "pr must be a number"; exit 1; }
+          gh pr view "$PR" -R "$GITHUB_REPOSITORY" \
+            --json state,headRefOid,headRefName,headRepository,headRepositoryOwner,maintainerCanModify \
+            --jq '"state=\(.state)\nrepo=\(.headRepositoryOwner.login)/\(.headRepository.name)\nref=\(.headRefName)\nsha=\(.headRefOid)\ncan_modify=\(.maintainerCanModify)"' \
+            >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+          grep -q '^state=OPEN$' "$GITHUB_OUTPUT" || { echo "pull request is not open"; exit 1; }
+
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.pr.outputs.repo }}
+          ref: ${{ steps.pr.outputs.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:visual:update
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snapshots
+          path: tests/visual/__snapshots__/*.png
+          if-no-files-found: error
+
+  commit:
+    needs: render
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          repository: ${{ needs.render.outputs.repo }}
+          ref: ${{ needs.render.outputs.sha }}
+          token: ${{ secrets.AUTOMERGE_TOKEN }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: snapshots
+          path: ${{ runner.temp }}/snapshots
+
+      - name: Copy validated snapshots
+        env:
+          SRC: ${{ runner.temp }}/snapshots
+        run: |
+          shopt -s nullglob
+          count=0
+          for f in "$SRC"/*; do
+            name=$(basename "$f")
+            [[ "$name" =~ ^(desktop|mobile)-[a-z0-9-]+\.png$ ]] || { echo "rejected name: $name"; exit 1; }
+            file --brief --mime-type "$f" | grep -qx 'image/png' || { echo "not a PNG: $name"; exit 1; }
+            cp "$f" "tests/visual/__snapshots__/$name"
+            count=$((count + 1))
+          done
+          echo "copied $count snapshots"
+
+      - name: Commit and push
+        env:
+          PR: ${{ inputs.pr }}
+          REF: ${{ needs.render.outputs.ref }}
+        run: |
+          git add tests/visual/__snapshots__
+          if git diff --cached --quiet; then
+            echo "snapshots already up to date"
+            exit 0
+          fi
+          git -c core.hooksPath=/dev/null \
+            -c user.name='otobongdev' \
+            -c user.email='291383620+otobongdev@users.noreply.github.com' \
+            commit -m "test(visual): update snapshots for #$PR"
+          # Pushing the exact commit that was rendered: if the branch moved
+          # since, this is rejected rather than overwriting newer work.
+          git -c core.hooksPath=/dev/null push origin "HEAD:refs/heads/$REF"

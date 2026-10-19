@@ -24,7 +24,7 @@ export function LowBandwidthToggle() {
       aria-label="Low data mode"
       title={explanation}
       onClick={() => setLowBandwidth(!lowBandwidth)}
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset transition ${
+      className={`inline-flex max-sm:min-h-11 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset transition max-sm:px-3 ${
         lowBandwidth
           ? 'bg-emerald-50 text-emerald-800 ring-emerald-200'
           : 'bg-[var(--color-canvas)] text-[var(--color-ink-soft)] ring-[var(--color-line)] hover:text-[var(--color-ink)]'

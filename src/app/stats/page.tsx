@@ -353,28 +353,38 @@ export default function StatsPage() {
       <section className="space-y-3">
         <h2 className="text-base font-semibold">Clinics by country</h2>
         <Card className="overflow-x-auto p-4">
-          <table className="w-full text-left text-sm">
+          <table className="block w-full text-left text-sm sm:table">
             <caption className="sr-only">Registered clinics grouped by country</caption>
-            <thead>
+            <thead className="hidden sm:table-header-group">
               <tr className="border-b border-[var(--color-line)] text-xs text-[var(--color-ink-soft)]">
                 <th scope="col" className="pb-2 font-medium">Country code</th>
                 <th scope="col" className="pb-2 font-medium">Total registered</th>
                 <th scope="col" className="pb-2 font-medium">Active status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[var(--color-line)]">
+            <tbody className="block divide-y divide-[var(--color-line)] sm:table-row-group">
               {countryCounts.length === 0 ? (
-                <tr>
-                  <td colSpan={3} className="py-4 text-center text-xs text-[var(--color-ink-soft)]">
+                <tr className="block sm:table-row">
+                  <td
+                    colSpan={3}
+                    className="block py-4 text-center text-xs text-[var(--color-ink-soft)] sm:table-cell"
+                  >
                     No clinics recorded yet.
                   </td>
                 </tr>
               ) : (
                 countryCounts.map(([country, stats]) => (
-                  <tr key={country}>
-                    <td className="py-2.5 font-medium">{country}</td>
-                    <td className="py-2.5">{stats.count}</td>
-                    <td className="py-2.5 text-emerald-700">{stats.active} active</td>
+                  <tr
+                    key={country}
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-3 sm:table-row sm:py-0"
+                  >
+                    <td className="block font-medium sm:table-cell sm:py-2.5">{country}</td>
+                    <td className="block text-xs text-[var(--color-ink-soft)] sm:table-cell sm:py-2.5 sm:text-sm sm:text-[var(--color-ink)]">
+                      {stats.count} registered
+                    </td>
+                    <td className="block text-xs text-emerald-700 sm:table-cell sm:py-2.5 sm:text-sm">
+                      {stats.active} active
+                    </td>
                   </tr>
                 ))
               )}
