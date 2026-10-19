@@ -17,12 +17,26 @@ export function toBaseUnits(display: string): bigint {
 }
 
 /** Formats base units for display, trimming trailing zeros to 2dp minimum. */
-export function formatUsdc(base: string | bigint): string {
+export function formatUsdc(base: string | bigint, locale = 'en'): string {
   const value = typeof base === 'bigint' ? base : BigInt(base);
   const whole = value / SCALE;
   const frac = (value % SCALE).toString().padStart(DECIMALS, '0');
   const trimmed = frac.replace(/0+$/, '').padEnd(2, '0');
-  return `${whole.toLocaleString('en-US')}.${trimmed}`;
+  const localeTag = locale === 'fr' ? 'fr-FR' : locale === 'sw' ? 'sw-KE' : 'en-US';
+  return `${whole.toLocaleString(localeTag)}.${trimmed}`;
+}
+
+/** Formats an amount with currency symbol or code according to the given locale */
+export function formatCurrency(
+  base: string | bigint,
+  currency = 'USD',
+  locale = 'en',
+): string {
+  const formatted = formatUsdc(base, locale);
+  if (locale === 'fr') {
+    return `${formatted} ${currency}`;
+  }
+  return `$${formatted}`;
 }
 
 /**
@@ -31,7 +45,7 @@ export function formatUsdc(base: string | bigint): string {
  * digits ("1,000.00"), which `toBaseUnits` rightly rejects.
  */
 export function toAmountInput(base: string | bigint): string {
-  return formatUsdc(base).replaceAll(',', '');
+  return formatUsdc(base, 'en').replaceAll(',', '');
 }
 
 export function shortAddress(addr: string, chars = 4): string {
@@ -39,10 +53,11 @@ export function shortAddress(addr: string, chars = 4): string {
   return `${addr.slice(0, chars)}…${addr.slice(-chars)}`;
 }
 
-export function formatDate(iso: string | Date | null): string {
+export function formatDate(iso: string | Date | null, locale = 'en'): string {
   if (!iso) return '—';
   const d = typeof iso === 'string' ? new Date(iso) : iso;
-  return d.toLocaleDateString('en-GB', {
+  const localeTag = locale === 'fr' ? 'fr-FR' : locale === 'sw' ? 'sw-KE' : 'en-GB';
+  return d.toLocaleDateString(localeTag, {
     day: 'numeric',
     month: 'short',
     year: 'numeric',

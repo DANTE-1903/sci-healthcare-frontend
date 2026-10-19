@@ -3,6 +3,7 @@
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
 import { Button, Card } from '@/components/ui';
+import { useLocaleContext } from '@/i18n/LocaleContext';
 
 interface VoucherQrProps {
   voucherId: string;
@@ -31,6 +32,7 @@ export function VoucherQr({
   amount,
   expiresAt,
 }: VoucherQrProps) {
+  const { t } = useLocaleContext();
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -75,21 +77,20 @@ export function VoucherQr({
         <div className="flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
           <div className="space-y-3 flex-1 text-center sm:text-left">
             <div className="inline-flex items-center gap-2 rounded-full bg-[var(--color-brand-soft)] px-2.5 py-0.5 text-xs font-semibold text-[var(--color-brand)]">
-              <span>Patient Voucher Pass</span>
+              <span>{t('voucher.patientPass')}</span>
             </div>
             <div>
               <h2 className="text-base font-semibold text-[var(--color-ink)]">
-                Present at Clinic Desk
+                {t('voucher.presentAtDesk')}
               </h2>
               <p className="mt-1 text-xs text-[var(--color-ink-soft)] max-w-sm">
-                Show this QR code upon arrival at the clinic. The desk can scan it instantly
-                to look up and claim your voucher.
+                {t('voucher.presentNote')}
               </p>
             </div>
 
             <div className="pt-1">
               <div className="text-xs uppercase tracking-wide text-[var(--color-ink-soft)]">
-                Voucher ID
+                {t('voucher.voucherNumberUpper')}
               </div>
               <div className="mono text-2xl font-bold tracking-tight text-[var(--color-brand)]">
                 #{voucherId}
@@ -116,7 +117,7 @@ export function VoucherQr({
                   <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
                   <path d="M6 14h12v8H6z" />
                 </svg>
-                <span>Print voucher pass</span>
+                <span>{t('voucher.printPass')}</span>
               </Button>
             </div>
           </div>
@@ -137,11 +138,11 @@ export function VoucherQr({
               </div>
             ) : (
               <div className="h-[200px] w-[200px] flex items-center justify-center text-xs text-[var(--color-ink-soft)] animate-pulse">
-                Generating QR code…
+                {t('common.loading')}
               </div>
             )}
             <span className="mt-2 text-[10px] mono text-[var(--color-ink-soft)]">
-              Scan to view #{voucherId}
+              {t('voucher.scanToView', { id: voucherId })}
             </span>
           </div>
         </div>
@@ -154,7 +155,7 @@ export function VoucherQr({
             <div className="text-xs uppercase font-bold tracking-wider text-slate-600">
               SCI Healthcare Protocol · Care Voucher
             </div>
-            <h1 className="text-xl font-bold mt-1">Patient Clinic Voucher</h1>
+            <h1 className="text-xl font-bold mt-1">{t('voucher.voucherPassTitle')}</h1>
           </div>
           {amount && (
             <div className="text-right">
@@ -165,13 +166,13 @@ export function VoucherQr({
 
         <div className="p-6 border-4 border-slate-900 rounded-2xl bg-slate-50 text-center space-y-2">
           <div className="text-xs uppercase font-semibold text-slate-600 tracking-wider">
-            Voucher Number
+            {t('voucher.voucherNumberUpper')}
           </div>
           <div className="mono text-5xl font-extrabold tracking-tight text-slate-950 py-2">
             #{voucherId}
           </div>
           <div className="text-xs text-slate-600">
-            Present this number or QR code at the clinic reception desk.
+            {t('voucher.presentNotice')}
           </div>
         </div>
 
@@ -179,24 +180,24 @@ export function VoucherQr({
           <div className="space-y-3 text-sm">
             {serviceLabel && (
               <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase">Service</div>
+                <div className="text-xs font-semibold text-slate-500 uppercase">{t('voucher.service')}</div>
                 <div className="font-medium text-slate-900">{serviceLabel}</div>
               </div>
             )}
             {providerName && (
               <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase">Clinic</div>
+                <div className="text-xs font-semibold text-slate-500 uppercase">{t('voucher.clinic')}</div>
                 <div className="font-medium text-slate-900">{providerName}</div>
               </div>
             )}
             {expiresAt && (
               <div>
-                <div className="text-xs font-semibold text-slate-500 uppercase">Expires</div>
+                <div className="text-xs font-semibold text-slate-500 uppercase">{t('voucher.expires')}</div>
                 <div className="text-slate-700">{expiresAt}</div>
               </div>
             )}
             <div>
-              <div className="text-xs font-semibold text-slate-500 uppercase">Voucher Contract</div>
+              <div className="text-xs font-semibold text-slate-500 uppercase">{t('voucher.voucherContract')}</div>
               <div className="mono text-xs text-slate-700 break-all">{contractAddress}</div>
             </div>
           </div>
@@ -212,14 +213,13 @@ export function VoucherQr({
               />
             )}
             <span className="mt-1 text-[10px] mono text-slate-500">
-              Scan with clinic scanner
+              {t('voucher.scanWithClinicScanner')}
             </span>
           </div>
         </div>
 
         <div className="text-[10px] text-slate-500 border-t border-slate-200 pt-3 leading-relaxed">
-          This voucher represents an escrowed commitment on the Stellar ledger. It contains no
-          personally identifiable medical or identity records.
+          {t('voucher.ledgerNote')}
         </div>
       </div>
     </>

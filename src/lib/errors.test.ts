@@ -85,6 +85,21 @@ describe('humaniseError', () => {
     expect(message).not.toMatch(/Friendbot/);
     expect(message).toBe('This account does not exist on the network yet. Fund it first.');
   });
+
+  it('supports French and Swahili translations', () => {
+    expect(humaniseError(new Error('Error(Contract, #4)'), VOUCHER_ERRORS, 'fr')).toBe(
+      "Ce bon d'achat n'existe pas.",
+    );
+    expect(humaniseError(new Error('Error(Contract, #4)'), VOUCHER_ERRORS, 'sw')).toBe(
+      'Vocha hiyo haipo.',
+    );
+    expect(humaniseError(new Error('token trustline missing'), VOUCHER_ERRORS, 'fr')).toBe(
+      'Votre portefeuille nécessite une trustline USDC pour détenir ou envoyer des USDC.',
+    );
+    expect(humaniseError(new Error('token trustline missing'), VOUCHER_ERRORS, 'sw')).toBe(
+      'Pochi yako inahitaji trustline ya USDC kabla ya kupokea au kutuma USDC.',
+    );
+  });
 });
 
 describe('error tables', () => {

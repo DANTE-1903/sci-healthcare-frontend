@@ -3,6 +3,7 @@
 import jsQR from 'jsqr';
 import { useEffect, useRef, useState } from 'react';
 import { Button, Modal } from '@/components/ui';
+import { useLocaleContext } from '@/i18n/LocaleContext';
 
 interface QrScannerModalProps {
   open: boolean;
@@ -229,11 +230,13 @@ export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
     }
   }
 
+  const { t } = useLocaleContext();
+
   return (
-    <Modal open={open} onClose={onClose} title="Scan patient voucher QR">
+    <Modal open={open} onClose={onClose} title={t('scanner.title')}>
       <div className="space-y-4">
         <p className="text-xs text-[var(--color-ink-soft)]">
-          Point the camera at the patient&apos;s voucher QR code to open it automatically.
+          {t('scanner.instructions')}
         </p>
 
         {/* Video Scanner Area */}
@@ -254,13 +257,13 @@ export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
 
           {hasCamera === false && (
             <div className="p-4 text-center text-xs text-white space-y-2">
-              <p>{cameraError || 'Camera unavailable'}</p>
+              <p>{cameraError || t('scanner.cameraUnavailable')}</p>
             </div>
           )}
 
           {hasCamera === null && (
             <div className="text-xs text-white/70 animate-pulse">
-              Requesting camera…
+              {t('scanner.requestingCamera')}
             </div>
           )}
         </div>
@@ -268,7 +271,7 @@ export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
         {/* Manual Fallback Input */}
         <form onSubmit={handleManualSubmit} className="pt-2 border-t border-[var(--color-line)] space-y-2">
           <label htmlFor="manual-voucher-id" className="block text-xs font-medium text-[var(--color-ink-soft)]">
-            Or enter voucher number manually
+            {t('scanner.manualPrompt')}
           </label>
           <div className="flex gap-2">
             <input
@@ -276,7 +279,7 @@ export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
               type="text"
               value={manualInput}
               onChange={(e) => setManualInput(e.target.value)}
-              placeholder="e.g. 42 or paste URL"
+              placeholder={t('scanner.manualPlaceholder')}
               className="flex-1 rounded-lg border border-[var(--color-line)] px-3 py-1.5 text-sm mono text-[var(--color-ink)]"
             />
             <Button
@@ -284,7 +287,7 @@ export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
               disabled={!manualInput.trim()}
               className="text-xs px-3"
             >
-              Open
+              {t('scanner.open')}
             </Button>
           </div>
         </form>

@@ -136,6 +136,12 @@ describe('formatDate', () => {
     expect(formatDate(new Date('2026-01-02T00:00:00.000Z'))).toBe('2 Jan 2026');
   });
 
+  it('renders dates per locale', () => {
+    const d = new Date('2026-05-20T10:00:00.000Z');
+    expect(formatDate(d, 'fr')).toMatch(/20/);
+    expect(formatDate(d, 'sw')).toMatch(/20/);
+  });
+
   it('renders a dash for missing dates', () => {
     expect(formatDate(null)).toBe('—');
   });

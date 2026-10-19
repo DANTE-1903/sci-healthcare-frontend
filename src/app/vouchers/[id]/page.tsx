@@ -12,6 +12,7 @@ import { CopyValue } from '@/components/CopyValue';
 import { VoucherQr } from '@/components/VoucherQr';
 import { VoucherRow } from '@/components/VoucherRow';
 import { Alert, Card, ExplorerLink, Field, StatusBadge } from '@/components/ui';
+import { useLocaleContext } from '@/i18n/LocaleContext';
 
 /**
  * One voucher, end to end: what it pays for, where it is in its lifecycle,
@@ -23,6 +24,7 @@ import { Alert, Card, ExplorerLink, Field, StatusBadge } from '@/components/ui';
 export default function VoucherPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { address } = useWallet();
+  const { t, locale } = useLocaleContext();
   const now = useNow();
   const names = useNameIndex();
   const [copied, setCopied] = useState(false);
@@ -46,7 +48,7 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
   useLiveUpdates({ voucherId: id });
 
   if (error) return <Alert>{error}</Alert>;
-  if (!v) return <p className="text-sm text-[var(--color-ink-soft)]">Loading voucher…</p>;
+  if (!v) return <p className="text-sm text-[var(--color-ink-soft)]">{t('common.loading')}</p>;
 
   // Offer the actions this wallet can take. settle and refund are
   // permissionless, so anyone may trigger them once they are due.
@@ -64,7 +66,9 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="mono text-xs text-[var(--color-ink-soft)]">Voucher #{v.id}</span>
+            <span className="mono text-xs text-[var(--color-ink-soft)]">
+              {t('voucher.voucherNumber', { id: v.id })}
+            </span>
             <StatusBadge status={v.status} />
             <button
               type="button"
@@ -73,7 +77,7 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
               aria-label="Copy link"
             >
               {copied ? (
-                <span className="font-medium text-emerald-700">Link copied!</span>
+                <span className="font-medium text-emerald-700">{t('voucher.linkCopied')}</span>
               ) : (
                 <>
                   <svg
@@ -89,7 +93,7 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                   </svg>
-                  <span>Copy link</span>
+                  <span>{t('voucher.copyLink')}</span>
                 </>
               )}
             </button>
@@ -98,7 +102,7 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
             {v.serviceLabel ?? `Service ${v.serviceCode}`}
           </h1>
           <p className="text-sm text-[var(--color-ink-soft)]">
-            at{' '}
+            {t('voucher.at')}{' '}
             <Link href={`/clinics/${v.provider.address}`} className="underline underline-offset-2">
               {v.provider.name}
             </Link>{' '}
@@ -106,8 +110,8 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
           </p>
         </div>
         <div className="text-right">
-          <div className="mono text-2xl font-semibold">${formatUsdc(v.amount)}</div>
-          <div className="text-xs text-[var(--color-ink-soft)]">USDC</div>
+          <div className="mono text-2xl font-semibold">${formatUsdc(v.amount, locale)}</div>
+          <div className="text-xs text-[var(--color-ink-soft)]">{t('common.usdc')}</div>
         </div>
       </div>
 
@@ -116,13 +120,13 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
         contractAddress={config.contracts.voucher}
         serviceLabel={v.serviceLabel ?? `Service ${v.serviceCode}`}
         providerName={v.provider.name}
-        amount={formatUsdc(v.amount)}
-        expiresAt={formatDate(v.expiresAt)}
+        amount={formatUsdc(v.amount, locale)}
+        expiresAt={formatDate(v.expiresAt, locale)}
       />
 
       <div className="grid gap-6 md:grid-cols-[2fr_1fr] print:hidden">
         <Card className="p-5">
-          <h2 className="text-sm font-semibold">History</h2>
+          <h2 className="text-sm font-semibold">{t('voucher.history')}</h2>
           <ol className="mt-4 space-y-4">
             {steps.map((s) => (
               <li key={s.label} className="flex gap-3">
@@ -137,12 +141,12 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
                   </div>
                   <div className="text-xs text-[var(--color-ink-soft)]">
                     {s.detail}
-                    {s.at && ` · ${formatDate(s.at)}`}
+                    {s.at && ` · ${formatDate(s.at, locale)}`}
                     {s.txHash && (
                       <>
                         {' · '}
                         <ExplorerLink href={explorerTx(s.txHash)}>
-                          View transaction
+                          {t('common.viewTransaction')}
                         </ExplorerLink>
                       </>
                     )}
@@ -154,33 +158,33 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
         </Card>
 
         <Card className="space-y-4 p-5">
-          <Field label="Funded by">
+          <Field label={t('voucher.fundedBy')}>
             <CopyValue value={v.funder} name={names.get(v.funder)} label="funder address" />
           </Field>
-          <Field label="Expires">{formatDate(v.expiresAt)}</Field>
+          <Field label={t('voucher.expires')}>{formatDate(v.expiresAt, locale)}</Field>
           {v.status === 'Settled' && v.settledNet && (
-            <Field label="Clinic received">
-              <span className="mono">${formatUsdc(v.settledNet)}</span>
+            <Field label={t('voucher.clinicReceived')}>
+              <span className="mono">${formatUsdc(v.settledNet, locale)}</span>
               {v.settledFee && (
                 <span className="text-xs text-[var(--color-ink-soft)]">
                   {' '}
-                  (fee ${formatUsdc(v.settledFee)})
+                  ({t('voucher.fee')} ${formatUsdc(v.settledFee, locale)})
                 </span>
               )}
             </Field>
           )}
           {v.disputeOutcome && (
-            <Field label="Dispute outcome">
+            <Field label={t('voucher.disputeOutcome')}>
               <span className="font-medium">
                 {v.disputeOutcome}
-                {v.disputeResolvedAt && ` · ${formatDate(v.disputeResolvedAt)}`}
+                {v.disputeResolvedAt && ` · ${formatDate(v.disputeResolvedAt, locale)}`}
               </span>
             </Field>
           )}
           {v.receipt && (
-            <Field label="Care receipt">Minted {formatDate(v.receipt.settledAt)}</Field>
+            <Field label={t('voucher.careReceipt')}>{t('voucher.minted')} {formatDate(v.receipt.settledAt, locale)}</Field>
           )}
-          <Field label="Patient reference">
+          <Field label={t('voucher.patientReference')}>
             <CopyValue
               value={v.beneficiaryRef}
               display={`${v.beneficiaryRef.slice(0, 16)}…`}
@@ -188,11 +192,10 @@ export default function VoucherPage({ params }: { params: Promise<{ id: string }
             />
           </Field>
           <p className="text-xs text-[var(--color-ink-soft)]">
-            The patient reference is an opaque hash. It cannot be turned back into a
-            name or record number.
+            {t('voucher.patientReferenceNote')}
           </p>
           <ExplorerLink href={explorerContract(config.contracts.voucher)}>
-            View the voucher contract
+            {t('voucher.viewContract')}
           </ExplorerLink>
         </Card>
       </div>

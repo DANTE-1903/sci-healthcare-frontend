@@ -26,6 +26,13 @@ describe('disputeReasonLabel', () => {
     expect(disputeReasonLabel(0)).toBe('Reason #0');
   });
 
+  it('supports locale translations', () => {
+    expect(disputeReasonLabel(1, 'fr')).toBe("Le patient n'a pas été vu");
+    expect(disputeReasonLabel(1, 'sw')).toBe('Mgonjwa hakuonekana');
+    expect(disputeReasonLabel(99, 'fr')).toBe('Motif #99');
+    expect(disputeReasonLabel(99, 'sw')).toBe('Sababu #99');
+  });
+
   it('keeps the code numbers stable and unique', () => {
     const codes = DISPUTE_REASONS.map((r) => r.code);
     expect(codes).toEqual([1, 2, 3, 4]);
