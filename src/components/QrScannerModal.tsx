@@ -1,6 +1,6 @@
 'use client';
 
-import jsQR from 'jsqr';
+import { BrowserQRCodeReader } from '@zxing/browser';
 import { useEffect, useRef, useState } from 'react';
 import { Button, Modal } from '@/components/ui';
 import { useLocaleContext } from '@/i18n/LocaleContext';
@@ -50,7 +50,8 @@ export function extractVoucherId(scanned: string): string | null {
 }
 
 /**
- * Camera QR scanner modal with native BarcodeDetector and jsQR library fallback (#4).
+ * Camera QR scanner modal: the native BarcodeDetector where available, with a
+ * ZXing fallback (#4).
  * Works offline once loaded.
  */
 export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
@@ -113,6 +114,7 @@ export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
         }
       }
 
+      const zxing = new BrowserQRCodeReader();
       const scanFrame = async () => {
         if (!active) return;
         const video = videoRef.current;
@@ -130,11 +132,12 @@ export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
               return;
             }
           } catch {
-            // Fall through to jsQR fallback
+            // Fall through to the ZXing fallback
           }
         }
 
-        // Fallback: draw frame to canvas and run jsQR
+        // Fallback: draw the frame to a canvas and decode it with ZXing, the
+        // QR library the app already uses for patient backups.
         const canvas = canvasRef.current;
         if (canvas) {
           const width = video.videoWidth;
@@ -145,13 +148,14 @@ export function QrScannerModal({ open, onClose, onScan }: QrScannerModalProps) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             if (ctx) {
               ctx.drawImage(video, 0, 0, width, height);
-              const imageData = ctx.getImageData(0, 0, width, height);
-              const code = jsQR(imageData.data, imageData.width, imageData.height, {
-                inversionAttempts: 'dontInvert',
-              });
-              if (code && code.data) {
-                handleDetected(code.data);
-                return;
+              try {
+                const text = zxing.decodeFromCanvas(canvas).getText();
+                if (text) {
+                  handleDetected(text);
+                  return;
+                }
+              } catch {
+                // No QR code in this frame; keep scanning.
               }
             }
           }

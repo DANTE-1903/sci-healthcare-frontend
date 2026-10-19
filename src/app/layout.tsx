@@ -13,8 +13,6 @@ import { WalletProvider } from '@/lib/wallet';
 import { config, isTestnet } from '@/lib/config';
 
 import { LocaleProvider } from '@/i18n/LocaleContext';
-import { LanguageSwitcher } from '@/components/LanguageSwitcher';
-import { HeaderNav, FooterContent } from '@/components/Navigation';
 
 import './globals.css';
 
@@ -59,6 +57,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               (#75). The setting is read once here so every page below sees
               the same behaviour. */}
           <SwrProvider>
+            {/* Language for translated text (#5); defaults to English and
+                remembers the visitor's choice. */}
+            <LocaleProvider>
             <TestnetNotice />
             <SiteHeader />
 
@@ -102,6 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </nav>
               </div>
             </footer>
+            </LocaleProvider>
           </SwrProvider>
         </WalletProvider>
       </body>
